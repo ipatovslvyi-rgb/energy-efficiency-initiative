@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sds-v6';
+const CACHE_NAME = 'sds-v7';
 
 const PRECACHE = [
   '/',
@@ -35,6 +35,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // JS/CSS файлы — всегда из сети (чтобы не кешировать старые версии)
+  if (url.pathname.includes('/node_modules/') || url.pathname.match(/\.(js|css)(\?|$)/)) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request).then((r) => r || new Response('', { status: 503 })))
+    );
+    return;
+  }
+
   // Для навигационных запросов — сначала сеть, потом кэш
   if (event.request.mode === 'navigate') {
     event.respondWith(
@@ -49,7 +57,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Для статики — сначала кэш, потом сеть
+  // Для остальной статики — сначала кэш, потом сеть
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
