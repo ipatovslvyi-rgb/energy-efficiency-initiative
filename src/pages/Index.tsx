@@ -431,6 +431,11 @@ export default function Index() {
         <SectionDivider index={5} label="О нас" />
         <AboutSection scrollToSection={scrollToSection} sectionRef={(el) => { sectionRefs.current[5] = el }} />
       </div>
+      <footer className="relative z-10 border-t border-foreground/10 py-4 text-center">
+        <p className="font-sans text-xs text-foreground/40">
+          Разработчик: СДС филиала «Копейский ВГСО» С.Г. Ипатов
+        </p>
+      </footer>
       <style>{`section { scroll-margin-top: 80px; }`}</style>
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} scrollToSection={scrollToSection} />
     </main>
