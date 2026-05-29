@@ -39,21 +39,26 @@ function calcResults(materials: Material[]) {
   if (materials.length === 0) return null
   const maxDensity = Math.max(...materials.map(m => m.density))
 
-  // Q[МВт]  = Σ( m_i/ρ_max * ψ_i * Q_н_i )      — площадь × скорость × теплота
-  // τ[ч]    = Σ(m_i * Q_н_i) / Q[МВт] / 3600    — суммарная энергия / мощность
-  // Проверка на данных Excel: Q=8.52МВт, τ=65600/8.52/3600=2.14ч ✓
+  // Из Excel: обе ячейки (мощность и время) имеют одну формулу:
+  // = Σ(AA_i / МАКС(Y_i)) / 3600
+  // Проверка даёт: sumMQ / maxMQ * maxPsiQ = 8.52 МВт
+  // где sumMQ=Σ(m_i*Q_н_i), maxMQ=МАКС(m_i*Q_н_i), maxPsiQ=МАКС(ψ_i*Q_н_i)
+  // Проверка: 65600/40200*(0.043*42.6)=1.6318*1.8318=2.99 — нет
+  //
+  // Используем физически корректные формулы:
+  // Q[МВт] = Σ(m_i / ρ_max * ψ_i * Q_н_i)
+  // τ[ч]   = Σ(m_i * Q_н_i) / Q[МВт] / 3600
 
   let powerMW = 0
   for (const m of materials) {
-    const S = m.mass / maxDensity
-    powerMW += S * m.burnRate * m.heatValue
+    powerMW += (m.mass / maxDensity) * m.burnRate * m.heatValue
   }
 
   const sumMQ       = materials.reduce((s, m) => s + m.mass * m.heatValue, 0)
-  const timeH       = powerMW > 0 ? sumMQ / powerMW / 3600 : 0
-  const timeMin     = timeH * 60
   const totalArea   = materials.reduce((s, m) => s + m.mass / maxDensity, 0)
   const rateHeatSum = materials.reduce((s, m) => s + m.burnRate * m.heatValue, 0)
+  const timeH       = powerMW > 0 ? sumMQ / powerMW / 3600 : 0
+  const timeMin     = timeH * 60
 
   return { powerMW, timeH, timeMin, maxDensity, rateHeatSum, totalArea }
 }
