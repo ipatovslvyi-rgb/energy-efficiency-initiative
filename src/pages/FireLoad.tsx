@@ -71,6 +71,78 @@ function fmt(n: number, digits = 2) {
   return n.toLocaleString("ru-RU", { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
+// ─── Расчёт конвейерной ленты ────────────────────────────────────────────────
+interface BeltInputs {
+  burnRate: string     // скорость выгорания, кг/(м²·с)
+  density: string      // плотность ленточного полотна, кг/м³
+  width: string        // ширина, м
+  length: string       // общая длина, м
+  thickness: string    // толщина, м
+  airSpeed: string     // скорость воздуха, м/с
+  flameSpeed: string   // скорость продвижения пламени, м/мин
+  flowM3s: string      // расход воздуха, м³/с — для расч. температуры
+}
+
+interface BeltRow {
+  t: number        // время, мин
+  dist: number     // расстояние пламени, м
+  area: number     // площадь горения, м²
+  massBurned: number
+  volBurned: number
+  lengthBurned: number
+  powerMW: number
+}
+
+function calcBelt(inp: BeltInputs): { rows: BeltRow[]; volume: number; mass: number; heatTotal: number; power30: number; power60: number; deltaTmax: number } | null {
+  const psi   = parseFloat(inp.burnRate.replace(",", "."))
+  const rho   = parseFloat(inp.density.replace(",", "."))
+  const w     = parseFloat(inp.width.replace(",", "."))
+  const L     = parseFloat(inp.length.replace(",", "."))
+  const h     = parseFloat(inp.thickness.replace(",", "."))
+  const vFlameMs = parseFloat(inp.flameSpeed.replace(",", "."))  // м/с → переводим в м/мин
+  const vFlame   = vFlameMs * 60  // м/мин
+  const flow  = parseFloat(inp.flowM3s.replace(",", "."))
+  const Q_н   = 33.5   // МДж/кг — НТС резины конвейерной ленты
+
+  if ([psi, rho, w, L, h, vFlame].some(isNaN) || psi <= 0 || rho <= 0 || w <= 0 || L <= 0 || h <= 0 || vFlame <= 0) return null
+
+  // Геометрия всей ленты (2 слоя: верхняя + нижняя ветвь)
+  const volume = L * w * h * 2
+  const mass   = volume * rho
+  const heatTotal = mass * Q_н
+
+  // Временные шаги по скриншоту
+  const STEPS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,45,48,51,54,57,60]
+
+  // k — параметр затухания: отношение скорости выгорания к скорости распространения пламени
+  // lb(t) = dist(t) × (1 - exp(-k×t)), где k = psi×60 / (2 × rho × h × 2 × vFlame)
+  const k = (psi * 60) / (2 * rho * h * 2 * vFlame)
+
+  const rows: BeltRow[] = STEPS.map(t => {
+    // Расстояние пройденное ФРОНТОМ пламени, м
+    const dist = Math.min(vFlame * t, L)
+    // Длина уже ВЫГОРЕВШЕГО участка (хвост пожара), м
+    const lengthBurned = Math.min(dist * (1 - Math.exp(-k * t)), dist)
+    // Площадь АКТИВНОГО горения = зона между фронтом и уже сгоревшим × ширина
+    const area = Math.max(dist - lengthBurned, 0) * w
+    // Масса выгоревшего вещества (оба слоя)
+    const massBurned = Math.min(lengthBurned * w * h * 2 * rho, mass)
+    const volBurned  = massBurned / rho
+    // Мощность пожара [МВт] = psi × S_горения × Q_н
+    const powerMW = psi * area * Q_н
+    return { t, dist, area, massBurned, volBurned, lengthBurned, powerMW }
+  })
+
+  const row30 = rows.find(r => r.t === 30)
+  const row60 = rows.find(r => r.t === 60)
+  const power30 = row30?.powerMW ?? 0
+  const power60 = row60?.powerMW ?? 0
+  const powerMax = Math.max(power30, power60)
+  const deltaTmax = (!isNaN(flow) && flow > 0) ? powerMax * 1_000_000 / (flow * 1.25 * 1005) : 0
+
+  return { rows, volume, mass, heatTotal, power30, power60, deltaTmax }
+}
+
 function calcResults(materials: Material[], flowM3s: number) {
   if (materials.length === 0) return null
   const maxDensity = Math.max(...materials.map(m => m.density))
@@ -331,6 +403,24 @@ export default function FireLoad() {
   const [showPresets, setShowPresets] = useState(false)
   const [showMachines, setShowMachines] = useState(false)
   const [machineSearch, setMachineSearch] = useState("")
+  const [activeTab, setActiveTab] = useState<"machine" | "belt">("machine")
+
+  // ── Belt state ──
+  const [belt, setBelt] = useState<BeltInputs>({
+    burnRate: "0,011",
+    density: "1370",
+    width: "0,8",
+    length: "640",
+    thickness: "0,016",
+    airSpeed: "0,6",
+    flameSpeed: "0,01010",
+    flowM3s: "12",
+  })
+  const beltResults = calcBelt(belt)
+
+  function setBeltField(field: keyof BeltInputs, val: string) {
+    setBelt(prev => ({ ...prev, [field]: val }))
+  }
 
   const flowNum = parseFloat(flowM3s.replace(",", "."))
   const results = calcResults(materials, isNaN(flowNum) ? 0 : flowNum)
@@ -388,37 +478,239 @@ export default function FireLoad() {
             </button>
             <div>
               <h1 className="font-sans text-base font-medium text-foreground">Пожарная нагрузка</h1>
-              <p className="font-mono text-xs text-foreground/40">Расчёт мощности пожара техники</p>
+              <p className="font-mono text-xs text-foreground/40">
+                {activeTab === "machine" ? "Расчёт мощности пожара техники" : "Расчёт мощности пожара конвейерной ленты"}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowPresets(v => !v)}
-              className="flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 font-mono text-xs text-blue-400 transition-all hover:bg-blue-500/20"
-            >
-              <Icon name="Plus" size={12} />
-              Добавить материал
-            </button>
-            <button
-              onClick={() => setShowMachines(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 font-mono text-xs text-amber-400 transition-all hover:bg-amber-500/20"
-            >
-              <Icon name="BookOpen" size={12} />
-              Справочник техники
-            </button>
-            {results && (
+            {/* Вкладки */}
+            <div className="flex rounded-lg border border-foreground/15 bg-foreground/5 p-0.5">
               <button
-                onClick={() => exportFireLoadToWord(machineName, materials, results, flowNum, deltaT, performer)}
-                className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 font-mono text-xs text-foreground/70 transition-all hover:border-foreground/40 hover:text-foreground"
+                onClick={() => setActiveTab("machine")}
+                className={`rounded-md px-3 py-1 font-mono text-xs transition-all ${activeTab === "machine" ? "bg-foreground text-background" : "text-foreground/50 hover:text-foreground"}`}
               >
-                <Icon name="FileText" size={12} />
-                Word
+                Техника
               </button>
+              <button
+                onClick={() => setActiveTab("belt")}
+                className={`rounded-md px-3 py-1 font-mono text-xs transition-all ${activeTab === "belt" ? "bg-foreground text-background" : "text-foreground/50 hover:text-foreground"}`}
+              >
+                Конв. лента
+              </button>
+            </div>
+            {activeTab === "machine" && (
+              <>
+                <button
+                  onClick={() => setShowPresets(v => !v)}
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 font-mono text-xs text-blue-400 transition-all hover:bg-blue-500/20"
+                >
+                  <Icon name="Plus" size={12} />
+                  Добавить материал
+                </button>
+                <button
+                  onClick={() => setShowMachines(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 font-mono text-xs text-amber-400 transition-all hover:bg-amber-500/20"
+                >
+                  <Icon name="BookOpen" size={12} />
+                  Справочник техники
+                </button>
+                {results && (
+                  <button
+                    onClick={() => exportFireLoadToWord(machineName, materials, results, flowNum, deltaT, performer)}
+                    className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 font-mono text-xs text-foreground/70 transition-all hover:border-foreground/40 hover:text-foreground"
+                  >
+                    <Icon name="FileText" size={12} />
+                    Word
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
 
+      {/* ══ Вкладка: Конвейерная лента ══ */}
+      {activeTab === "belt" && (
+        <div className="mx-auto max-w-5xl px-6 py-8 md:px-10">
+          <div className="rounded-2xl border border-foreground/10 bg-foreground/3 px-8 py-8">
+            <p className="mb-4 text-right font-sans text-sm text-foreground/50">Приложение №3</p>
+            <h2 className="mb-8 text-center font-sans text-xl font-bold text-foreground">
+              Расчет мощности пожара конвейерной ленты
+            </h2>
+
+            {/* Исходные данные */}
+            <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div>
+                <p className="mb-4 font-sans text-sm font-bold text-foreground">Исходные данные для выполнения расчета</p>
+                <div className="overflow-hidden rounded-xl border border-foreground/15">
+                  {([
+                    ["Скорость выгорания ленточного полотна, кг/(м²·с)", "burnRate"],
+                    ["Плотность ленточного полотна, кг/м³", "density"],
+                    ["Ширина ленточного полотна, м", "width"],
+                    ["Общая длина ленточного полотна, м", "length"],
+                    ["Общая толщина ленточного полотна, м", "thickness"],
+                    ["Скорость воздуха в выработке, м/с", "airSpeed"],
+                    ["Скорость продвижения пламени, м/мин", "flameSpeed"],
+                  ] as [string, keyof BeltInputs][]).map(([label, field]) => (
+                    <div key={field} className="flex items-center border-b border-foreground/8 last:border-0">
+                      <div className="flex-1 px-4 py-2 font-sans text-sm text-foreground/80">{label}</div>
+                      <div className="shrink-0 border-l border-foreground/10">
+                        <input
+                          value={belt[field]}
+                          onChange={e => setBeltField(field, e.target.value)}
+                          className="w-28 bg-green-500/10 px-3 py-2 text-center font-mono text-sm text-foreground outline-none focus:bg-green-500/20"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Справочные характеристики */}
+                {beltResults && (
+                  <div className="mt-4 overflow-hidden rounded-xl border border-foreground/10">
+                    {[
+                      ["Низшая теплота сгорания, МДж/кг", "33,5"],
+                      ["Объём, м³", fmt(beltResults.volume, 3)],
+                      ["Масса, кг", fmt(beltResults.mass, 2)],
+                      ["Шаг по времени", "60"],
+                    ].map(([label, val]) => (
+                      <div key={label} className="flex items-center border-b border-foreground/8 last:border-0">
+                        <div className="flex-1 px-4 py-2 text-right font-sans text-sm text-foreground/60">{label}</div>
+                        <div className="w-32 shrink-0 border-l border-foreground/10 px-4 py-2 text-center font-mono text-sm font-bold text-foreground">{val}</div>
+                      </div>
+                    ))}
+                    <div className="flex items-center border-t border-foreground/10 bg-foreground/3">
+                      <div className="flex-1 px-4 py-2 text-right font-sans text-sm text-foreground/60">Суммарная теплота, МДж/кг</div>
+                      <div className="w-32 shrink-0 border-l border-foreground/10 px-4 py-2 text-center font-mono text-sm font-bold text-foreground">{fmt(beltResults.heatTotal, 2)}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Расход воздуха для температуры */}
+                <div className="mt-4 overflow-hidden rounded-xl border border-foreground/10">
+                  <div className="flex items-center">
+                    <div className="flex-1 px-4 py-2 font-sans text-sm text-foreground/80">Расход воздуха, м³/с</div>
+                    <div className="shrink-0 border-l border-foreground/10">
+                      <input
+                        value={belt.flowM3s}
+                        onChange={e => setBeltField("flowM3s", e.target.value)}
+                        className="w-28 bg-green-500/10 px-3 py-2 text-center font-mono text-sm text-foreground outline-none focus:bg-green-500/20"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Справочная таблица материалов */}
+                <div className="mt-4 overflow-hidden rounded-xl border border-foreground/10">
+                  <div className="grid grid-cols-4 border-b border-foreground/10 bg-foreground/5 px-3 py-1.5 text-center font-mono text-[10px] text-foreground/40 uppercase tracking-wider">
+                    <span></span><span>НТС</span><span>Скорость</span><span>Плотность кг/м³</span>
+                  </div>
+                  {[
+                    ["Электрокабель", "25", "0,007", "900"],
+                    ["Древесина", "13,8", "0,027", "500"],
+                    ["Древесина сосновая", "18,7–20,8", "0,039", "500"],
+                    ["Резина", "33,5", "0,011", "1370"],
+                  ].map(([name, nts, speed, dens]) => (
+                    <div key={name} className="grid grid-cols-4 border-b border-foreground/8 last:border-0 px-3 py-1.5 text-center font-mono text-xs">
+                      <span className="text-left text-foreground/70">{name}</span>
+                      <span className="text-foreground/70">{nts}</span>
+                      <span className="text-foreground/70">{speed}</span>
+                      <span className="text-foreground/70">{dens}</span>
+                    </div>
+                  ))}
+                  <div className="px-3 py-1.5 font-mono text-[9px] italic text-foreground/30">Толщина задаётся для суммарной толщины 2х слоёв ленты</div>
+                  <div className="px-3 pb-2 font-mono text-[9px] italic text-foreground/30">Скорость выгорания — справочная величина</div>
+                </div>
+              </div>
+
+              {/* Расчётная температура */}
+              {beltResults && (
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-xl border border-foreground/10 overflow-hidden">
+                    <div className="bg-foreground/5 px-4 py-2 text-center font-sans text-sm font-bold text-foreground">
+                      Расчётная температура горения ленты
+                    </div>
+                    <div className="grid grid-cols-3 border-t border-foreground/10">
+                      {["Мощность, мВт", "Расход, м³/с", "Δt, °C"].map(h => (
+                        <div key={h} className="border-r border-foreground/10 last:border-0 px-3 py-2 text-center font-mono text-xs text-foreground/50">{h}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-3 border-t border-foreground/10">
+                      <div className="border-r border-foreground/10 px-3 py-3 text-center font-mono text-base font-bold text-foreground">
+                        {fmt(beltResults.power60, 2)}
+                      </div>
+                      <div className="border-r border-green-500/30 bg-green-500/10 px-3 py-3 text-center font-mono text-base font-bold text-foreground">
+                        <input
+                          value={belt.flowM3s}
+                          onChange={e => setBeltField("flowM3s", e.target.value)}
+                          className="w-full bg-transparent text-center font-mono text-base font-bold text-foreground outline-none"
+                        />
+                      </div>
+                      <div className="px-3 py-3 text-center font-mono text-base font-bold text-foreground">
+                        {fmt(beltResults.deltaTmax, 1)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Таблица по времени */}
+            {beltResults && (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-xs font-mono">
+                  <thead>
+                    <tr className="bg-foreground/8">
+                      {["Время, мин", "Расстояние пройденное пламенем, м", "Площадь горения, м²", "Масса выгорания, кг", "Объём выгорания", "Выгоревшая длина, м", "Мощность мВт"].map(h => (
+                        <th key={h} className="border border-foreground/15 px-2 py-2 text-center font-sans text-[10px] font-semibold text-foreground/70 leading-tight">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {beltResults.rows.map(row => (
+                      <tr key={row.t} className={`${row.t === 30 ? "bg-amber-500/10" : row.t === 60 ? "bg-blue-500/10" : "hover:bg-foreground/3"}`}>
+                        <td className="border border-foreground/10 px-2 py-1 text-center text-foreground/70">{row.t}</td>
+                        <td className="border border-foreground/10 px-2 py-1 text-center text-foreground/80">{fmt(row.dist, 3)}</td>
+                        <td className="border border-foreground/10 px-2 py-1 text-center text-foreground/80">{fmt(row.area, 2)}</td>
+                        <td className="border border-foreground/10 px-2 py-1 text-center text-foreground/80">{fmt(row.massBurned, 2)}</td>
+                        <td className="border border-foreground/10 px-2 py-1 text-center text-foreground/80">{fmt(row.volBurned, 2)}</td>
+                        <td className="border border-foreground/10 px-2 py-1 text-center text-foreground/80">{fmt(row.lengthBurned, 2)}</td>
+                        <td className="border border-foreground/10 px-2 py-1 text-center font-bold text-foreground">{fmt(row.powerMW, 2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Итоговые строки */}
+            {beltResults && (
+              <div className="mt-6 space-y-2">
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                  <span className="font-sans text-sm text-foreground/70">Мощность пожара через 30 минут после возникновения пожара составит</span>
+                  <span className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-mono text-base font-bold text-foreground">{fmt(beltResults.power30, 2)}</span>
+                  <span className="font-sans text-sm text-foreground/50">МВт</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+                  <span className="font-sans text-sm text-foreground/70">Мощность пожара через 60 минут после возникновения пожара составит</span>
+                  <span className="rounded border border-blue-500/40 bg-blue-500/10 px-3 py-1 font-mono text-base font-bold text-foreground">{fmt(beltResults.power60, 2)}</span>
+                  <span className="font-sans text-sm text-foreground/50">МВт</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-foreground/10 bg-foreground/3 px-4 py-3">
+                  <span className="font-sans text-sm text-foreground/70">Для расчёта устойчивости вентиляционного режима принимаем максимальную величину мощности пожара</span>
+                  <span className="ml-auto rounded border border-foreground/30 px-3 py-1 font-mono text-base font-bold text-foreground">{fmt(Math.max(beltResults.power30, beltResults.power60), 2)}</span>
+                  <span className="font-sans text-sm text-foreground/50">МВт</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ Вкладка: Техника ══ */}
+      {activeTab === "machine" && (
+      <>
       {/* Пресеты */}
       {showPresets && (
         <div className="border-b border-foreground/10 bg-background/95 backdrop-blur-md">
@@ -656,6 +948,9 @@ export default function FireLoad() {
           </p>
         </div>
       </div>
+
+      </>
+      )}
 
       {/* Модальное окно справочника техники */}
       {showMachines && (
