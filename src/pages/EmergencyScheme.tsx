@@ -746,7 +746,7 @@ export default function EmergencyScheme() {
   return (
     <div className="relative min-h-screen bg-background">
       <GrainOverlay />
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 animated-bg" />
         <div className="absolute inset-0 bg-black/10" />
       </div>

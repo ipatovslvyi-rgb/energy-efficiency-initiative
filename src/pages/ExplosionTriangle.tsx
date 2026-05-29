@@ -562,7 +562,7 @@ export default function ExplosionTriangle() {
   return (
     <main className="relative min-h-screen bg-background text-foreground overflow-x-hidden">
       <GrainOverlay />
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 animated-bg" />
         <div className="absolute inset-0 bg-black/10" />
       </div>
