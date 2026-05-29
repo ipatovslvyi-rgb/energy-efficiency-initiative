@@ -378,7 +378,7 @@ export default function Index() {
                   { label: "Схема аварии", href: "/emergency-scheme", icon: "AlertTriangle", available: true },
                   { label: "Вентиляция", href: "#ventilation", icon: "Wind", available: true },
                   { label: "Пожаротушение", href: "#firefighting", icon: "Flame", available: true },
-                  { label: "Пожарная нагрузка", href: null, icon: "Layers", available: false },
+                  { label: "Пожарная нагрузка", href: "/fire-load", icon: "Layers", available: true },
                   { label: "Устойчивость", href: null, icon: "ShieldCheck", available: false },
                   { label: "ЗВТ", href: null, icon: "Zap", available: false },
                   { label: "Треугольник", href: "/explosion-triangle", icon: "Triangle", available: true },
