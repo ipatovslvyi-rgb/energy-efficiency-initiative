@@ -39,21 +39,21 @@ function calcResults(materials: Material[]) {
   if (materials.length === 0) return null
   const maxDensity = Math.max(...materials.map(m => m.density))
 
-  // Q[МВт] = Σ( m_i/ρ_max * ψ_i[кг/(м²с)] * Q_н_i[МДж/кг] )
-  // τ[ч]   = Σ(m_i/ρ_max) / Σ(ψ_i) / 3600
-  let powerMW = 0
-  let rateHeatSum = 0
+  // Q[МВт]  = Σ( m_i/ρ_max * ψ_i * Q_н_i )      — площадь × скорость × теплота
+  // τ[ч]    = Σ(m_i * Q_н_i) / Q[МВт] / 3600    — суммарная энергия / мощность
+  // Проверка на данных Excel: Q=8.52МВт, τ=65600/8.52/3600=2.14ч ✓
 
+  let powerMW = 0
   for (const m of materials) {
     const S = m.mass / maxDensity
-    powerMW    += S * m.burnRate * m.heatValue
-    rateHeatSum += m.burnRate * m.heatValue
+    powerMW += S * m.burnRate * m.heatValue
   }
 
-  const totalArea     = materials.reduce((s, m) => s + m.mass / maxDensity, 0)
-  const totalBurnRate = materials.reduce((s, m) => s + m.burnRate, 0)
-  const timeH  = totalBurnRate > 0 ? totalArea / totalBurnRate / 3600 : 0
-  const timeMin = timeH * 60
+  const sumMQ       = materials.reduce((s, m) => s + m.mass * m.heatValue, 0)
+  const timeH       = powerMW > 0 ? sumMQ / powerMW / 3600 : 0
+  const timeMin     = timeH * 60
+  const totalArea   = materials.reduce((s, m) => s + m.mass / maxDensity, 0)
+  const rateHeatSum = materials.reduce((s, m) => s + m.burnRate * m.heatValue, 0)
 
   return { powerMW, timeH, timeMin, maxDensity, rateHeatSum, totalArea }
 }
