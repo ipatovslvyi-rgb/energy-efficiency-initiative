@@ -927,21 +927,21 @@ export default function FireLoad() {
       {/* ══ Вкладка: Техника ══ */}
       {activeTab === "machine" && (
       <>
-      {/* Пресеты */}
+      {/* Пресеты — оверлей */}
       {showPresets && (
-        <div className="border-b border-foreground/10 bg-background/95 backdrop-blur-md">
-          <div className="mx-auto max-w-5xl px-6 py-4 md:px-10">
-            <p className="mb-2 font-mono text-xs text-foreground/40 uppercase tracking-widest">Выберите из справочника или добавьте вручную</p>
-            <div className="flex flex-wrap gap-2">
+        <div className="absolute left-0 right-0 z-30 border-b border-foreground/10 bg-background/97 backdrop-blur-md" style={{top: 57}}>
+          <div className="mx-auto max-w-5xl px-6 py-3 md:px-10">
+            <p className="mb-2 font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Выберите из справочника или добавьте вручную</p>
+            <div className="flex flex-wrap gap-1.5">
               {PRESET_MATERIALS.map(p => (
                 <button key={p.name} onClick={() => addPreset(p)}
-                  className="rounded-lg border border-foreground/15 bg-foreground/5 px-3 py-1.5 text-left text-xs text-foreground/70 transition-all hover:border-foreground/30 hover:text-foreground">
+                  className="rounded-lg border border-foreground/15 bg-foreground/5 px-2.5 py-1 text-left text-xs text-foreground/70 transition-all hover:border-foreground/30 hover:text-foreground">
                   <span className="font-medium">{p.name}</span>
-                  <span className="ml-2 text-foreground/40">{p.heatValue} МДж/кг</span>
+                  <span className="ml-1.5 text-foreground/40">{p.heatValue}</span>
                 </button>
               ))}
               <button onClick={() => { addCustom(); setShowPresets(false) }}
-                className="rounded-lg border border-dashed border-foreground/20 px-3 py-1.5 text-xs text-foreground/50 hover:text-foreground transition-all">
+                className="rounded-lg border border-dashed border-foreground/20 px-2.5 py-1 text-xs text-foreground/50 hover:text-foreground transition-all">
                 + Свой
               </button>
             </div>
@@ -949,219 +949,132 @@ export default function FireLoad() {
         </div>
       )}
 
-      {/* Документ */}
-      <div className="mx-auto max-w-5xl px-6 py-8 md:px-10">
+      {/* Документ — весь экран без скролла */}
+      <div className="flex h-[calc(100vh-57px)] flex-col gap-4 px-4 py-4 md:px-8 md:py-5">
+        <div className="mx-auto flex w-full max-w-5xl flex-1 gap-5 overflow-hidden">
 
-        {/* Приложение №1 — шапка документа */}
-        <div className="mb-8 rounded-2xl border border-foreground/10 bg-foreground/3 px-8 py-8">
-          <p className="mb-6 text-right font-sans text-sm text-foreground/50">Приложение №1</p>
-          <h2 className="mb-8 text-center font-sans text-xl font-bold text-foreground">
-            Расчет мощности пожара техники
-          </h2>
+          {/* Левая колонка — исходные данные */}
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/40">
+              Приложение №1 · Исходные данные
+            </p>
 
-          <p className="mb-4 font-sans text-sm font-bold text-foreground">Исходные данные для выполнения расчета:</p>
-
-          {/* Основная таблица */}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm" style={{ minWidth: 520 }}>
-              <thead>
-                {/* Строка: Техника / название */}
-                <tr>
-                  <td className="border border-foreground/25 px-3 py-2 text-center font-bold italic text-foreground/80 w-48">
-                    Техника
-                  </td>
-                  <td className="border border-foreground/25 px-3 py-2 text-center italic text-foreground/70" colSpan={materials.length}>
-                    <input
-                      type="text"
-                      value={machineName}
-                      onChange={e => setMachineName(e.target.value)}
-                      className="w-full bg-transparent text-center italic text-foreground/80 outline-none"
-                    />
-                  </td>
-                  <td className="border border-foreground/25 px-2 py-2 w-24"></td>
-                </tr>
-                {/* Строка: Материал / названия */}
-                <tr className="bg-foreground/5">
-                  <td className="border border-foreground/25 px-3 py-2 text-center font-bold text-foreground/80">
-                    Материал
-                  </td>
-                  {materials.map(m => (
-                    <td key={m.id} className="border border-foreground/25 px-3 py-2 text-center font-bold text-foreground/80 min-w-[110px]">
-                      <div className="flex items-center justify-center gap-1">
-                        <input
-                          type="text"
-                          value={m.name}
-                          onChange={e => updateMaterial(m.id, "name", e.target.value)}
-                          className="w-full bg-transparent text-center font-bold text-foreground/80 outline-none"
-                        />
-                        {materials.length > 1 && (
-                          <button onClick={() => removeMaterial(m.id)}
-                            className="shrink-0 text-foreground/20 hover:text-red-400 transition-colors">
-                            <Icon name="X" size={10} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  ))}
-                  <td className="border border-foreground/25 px-2 py-2 text-center font-bold text-foreground/60 text-xs">
-                    Ед. изм.
-                  </td>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Плотность */}
-                <tr>
-                  <td className="border border-foreground/25 px-3 py-2 italic text-foreground/70">Плотность</td>
-                  {materials.map(m => (
-                    <EditCell key={m.id} value={m.density} italic
-                      isGreen={false}
-                      onChange={v => updateMaterial(m.id, "density", v)} />
-                  ))}
-                  <td className="border border-foreground/25 px-2 py-2 text-center text-xs italic text-foreground/50">
-                    кг/м³
-                  </td>
-                </tr>
-                {/* Масса — зелёная, изменяемая */}
-                <tr className="bg-foreground/3">
-                  <td className="border border-foreground/25 px-3 py-2 font-bold text-foreground/80">Масса</td>
-                  {materials.map(m => (
-                    <EditCell key={m.id} value={m.mass} bold isGreen
-                      onChange={v => updateMaterial(m.id, "mass", v)} />
-                  ))}
-                  <td className="border border-foreground/25 px-2 py-2 text-center text-xs italic text-foreground/50">кг</td>
-                </tr>
-                {/* Скорость выгорания */}
-                <tr>
-                  <td className="border border-foreground/25 px-3 py-2 text-foreground/70">Скорость выгорания</td>
-                  {materials.map(m => (
-                    <EditCell key={m.id} value={m.burnRate}
-                      onChange={v => updateMaterial(m.id, "burnRate", v)} />
-                  ))}
-                  <td className="border border-foreground/25 px-2 py-2 text-center text-xs italic text-foreground/50">
-                    кг/(м²·с)
-                  </td>
-                </tr>
-                {/* Низшая теплота */}
-                <tr className="bg-foreground/3">
-                  <td className="border border-foreground/25 px-3 py-2 text-foreground/70">Низшая теплота сгорания</td>
-                  {materials.map(m => (
-                    <EditCell key={m.id} value={m.heatValue}
-                      onChange={v => updateMaterial(m.id, "heatValue", v)} />
-                  ))}
-                  <td className="border border-foreground/25 px-2 py-2 text-center text-xs italic text-foreground/50">МДж/кг</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Результаты справа — как в Excel */}
-          {results && (
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-8">
-              <div className="flex items-center gap-3">
-                <span className="font-sans text-sm text-foreground/70">Мощность:</span>
-                <div className="rounded border-2 border-foreground/40 bg-foreground/5 px-4 py-1.5 min-w-[80px] text-center">
-                  <span className="font-bold italic text-foreground text-lg">
-                    {fmt(results.powerMW)}
-                  </span>
-                </div>
-                <span className="italic text-sm text-foreground/60">МВт</span>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-sans text-sm text-foreground/70">Время:</span>
-                <div className="rounded border-2 border-foreground/40 bg-foreground/5 px-4 py-1.5 min-w-[80px] text-center">
-                  <span className="font-bold italic text-foreground text-lg">
-                    {fmt(results.timeH)}
-                  </span>
-                </div>
-                <span className="italic text-sm text-foreground/60">Часов</span>
-                <span className="text-sm text-foreground/40">или</span>
-                <div className="rounded border-2 border-foreground/40 bg-foreground/5 px-4 py-1.5 min-w-[80px] text-center">
-                  <span className="font-bold italic text-foreground text-lg">
-                    {fmt(results.timeMin, 1)}
-                  </span>
-                </div>
-                <span className="italic text-sm text-foreground/60">мин</span>
-              </div>
+            {/* Имя техники */}
+            <div className="flex items-center gap-2 rounded-lg border border-foreground/15 bg-foreground/5 px-3 py-1.5">
+              <span className="shrink-0 font-sans text-xs font-bold italic text-foreground/50">Техника:</span>
+              <input type="text" value={machineName} onChange={e => setMachineName(e.target.value)}
+                className="flex-1 bg-transparent text-sm italic text-foreground/80 outline-none" />
             </div>
-          )}
 
-          {/* Расчётная температура горения */}
-          {results && (
-            <div className="mt-8">
-              <p className="mb-3 text-center font-sans text-sm font-bold text-foreground/80">
-                Расчетная температура горения техники
-              </p>
-              <table className="border-collapse text-sm">
+            {/* Таблица материалов */}
+            <div className="overflow-hidden rounded-xl border border-foreground/15">
+              <table className="w-full border-collapse text-xs">
                 <thead>
-                  <tr className="bg-green-500/15">
-                    <td className="border border-foreground/25 px-4 py-2 text-center font-bold text-foreground/80">
-                      Мощность, мВт
-                    </td>
-                    <td className="border border-foreground/25 px-4 py-2 text-center font-bold text-foreground/80">
-                      Расход,<br />м³/с
-                    </td>
-                    <td className="border border-foreground/25 px-4 py-2 text-center font-bold text-foreground/80">
-                      Δt, °C
-                    </td>
+                  <tr className="bg-foreground/8">
+                    <td className="border-b border-r border-foreground/15 px-3 py-2 font-bold text-foreground/60 w-40">Материал</td>
+                    {materials.map(m => (
+                      <td key={m.id} className="border-b border-r border-foreground/15 px-2 py-2 text-center font-bold text-foreground/80 min-w-[90px] last:border-r-0">
+                        <div className="flex items-center justify-center gap-1">
+                          <input type="text" value={m.name} onChange={e => updateMaterial(m.id, "name", e.target.value)}
+                            className="w-full bg-transparent text-center font-bold text-foreground/80 outline-none text-xs" />
+                          {materials.length > 1 && (
+                            <button onClick={() => removeMaterial(m.id)} className="shrink-0 text-foreground/20 hover:text-red-400 transition-colors">
+                              <Icon name="X" size={9} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    ))}
+                    <td className="border-b border-foreground/15 px-2 py-2 text-center text-[10px] font-bold text-foreground/35 w-16">Ед.</td>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <ReadCell>{fmt(results.powerMW)}</ReadCell>
-                    <td className="border border-foreground/25 px-3 py-2 text-center bg-green-500/15">
-                      <input
-                        type="text"
-                        value={flowM3s}
-                        onChange={e => setFlowM3s(e.target.value)}
-                        className="w-20 bg-transparent text-center text-sm text-foreground/80 outline-none"
-                        placeholder="0"
-                      />
-                    </td>
-                    <ReadCell bold>
-                      {deltaT !== null ? fmt(deltaT, 1) : "—"}
-                    </ReadCell>
+                    <td className="border-b border-r border-foreground/10 px-3 py-2 italic text-foreground/55">Плотность</td>
+                    {materials.map(m => <EditCell key={m.id} value={m.density} italic isGreen={false} onChange={v => updateMaterial(m.id, "density", v)} />)}
+                    <td className="border-b border-foreground/10 px-2 py-2 text-center text-[10px] italic text-foreground/35">кг/м³</td>
+                  </tr>
+                  <tr className="bg-green-500/5">
+                    <td className="border-b border-r border-foreground/10 px-3 py-2 font-bold text-foreground/80">Масса</td>
+                    {materials.map(m => <EditCell key={m.id} value={m.mass} bold isGreen onChange={v => updateMaterial(m.id, "mass", v)} />)}
+                    <td className="border-b border-foreground/10 px-2 py-2 text-center text-[10px] italic text-foreground/35">кг</td>
+                  </tr>
+                  <tr>
+                    <td className="border-b border-r border-foreground/10 px-3 py-2 text-foreground/55">Скорость выгорания</td>
+                    {materials.map(m => <EditCell key={m.id} value={m.burnRate} onChange={v => updateMaterial(m.id, "burnRate", v)} />)}
+                    <td className="border-b border-foreground/10 px-2 py-2 text-center text-[10px] italic text-foreground/35">кг/(м²·с)</td>
+                  </tr>
+                  <tr className="bg-foreground/3">
+                    <td className="border-r border-foreground/10 px-3 py-2 text-foreground/55">НТС</td>
+                    {materials.map(m => <EditCell key={m.id} value={m.heatValue} onChange={v => updateMaterial(m.id, "heatValue", v)} />)}
+                    <td className="px-2 py-2 text-center text-[10px] italic text-foreground/35">МДж/кг</td>
                   </tr>
                 </tbody>
               </table>
-              <p className="mt-1 font-mono text-[10px] text-foreground/30">
-                Δt = Q·10⁶ / (L · 1,25 · 1005), где L — расход воздуха в выработке, м³/с
-              </p>
             </div>
-          )}
 
-          {/* Вывод */}
+            {/* Легенда */}
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-2.5 w-4 shrink-0 rounded-sm border border-green-500/40 bg-green-500/30" />
+              <span className="font-mono text-[10px] text-foreground/30">Зелёные ячейки — изменяемые величины</span>
+            </div>
+          </div>
+
+          {/* Правая колонка — результаты */}
           {results && (
-            <div className="mt-6">
-              <p className="font-sans text-sm text-foreground/70 leading-relaxed">
-                Для расчета устойчивости вентиляционного режима при возникновении пожара, принимаем максимальную величину мощности пожара{" "}
-                <span className="inline-flex items-center gap-1">
-                  <span className="rounded border border-foreground/30 bg-foreground/8 px-2 py-0.5 font-bold text-foreground">
-                    {fmt(results.powerMW)}
-                  </span>
-                  {" "}МВт
-                </span>
-              </p>
-              <div className="mt-4 flex items-center gap-2">
-                <span className="font-sans text-sm text-foreground/70">Расчет выполнил:</span>
-                <input
-                  type="text"
-                  value={performer}
-                  onChange={e => setPerformer(e.target.value)}
+            <div className="flex w-60 shrink-0 flex-col gap-3">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/40">Результаты</p>
+
+              {/* Мощность */}
+              <div className="rounded-xl border border-foreground/15 bg-foreground/5 px-4 py-4 text-center">
+                <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-foreground/40">Мощность пожара</p>
+                <p className="font-sans text-4xl font-bold text-foreground">{fmt(results.powerMW)}</p>
+                <p className="mt-0.5 font-mono text-sm italic text-foreground/50">МВт</p>
+              </div>
+
+              {/* Время */}
+              <div className="rounded-xl border border-foreground/15 bg-foreground/5 px-4 py-3 text-center">
+                <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-foreground/40">Время выгорания</p>
+                <p className="font-sans text-2xl font-bold text-foreground">
+                  {fmt(results.timeH)} <span className="text-sm font-normal text-foreground/50">ч</span>
+                </p>
+                <p className="font-mono text-xs text-foreground/40">{fmt(results.timeMin, 1)} мин</p>
+              </div>
+
+              {/* Температура */}
+              <div className="rounded-xl border border-foreground/15 bg-foreground/5 px-4 py-3">
+                <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-foreground/40">Температура горения</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <p className="font-mono text-[10px] text-foreground/40">Расход, м³/с</p>
+                    <input type="text" value={flowM3s} onChange={e => setFlowM3s(e.target.value)}
+                      className="mt-0.5 w-full rounded border border-green-500/30 bg-green-500/10 px-2 py-1 text-center font-mono text-sm text-foreground outline-none focus:border-green-500/50" />
+                  </div>
+                  <Icon name="ArrowRight" size={14} className="mt-4 shrink-0 text-foreground/30" />
+                  <div className="flex-1 text-center">
+                    <p className="font-mono text-[10px] text-foreground/40">Δt, °C</p>
+                    <p className="mt-1 font-sans text-xl font-bold text-foreground">{deltaT !== null ? fmt(deltaT, 1) : "—"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Итог */}
+              <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+                <p className="font-mono text-[10px] text-foreground/50 leading-relaxed">Принимаем макс. мощность для расчёта устойчивости:</p>
+                <p className="mt-1 font-sans text-xl font-bold text-foreground">
+                  {fmt(results.powerMW)} <span className="text-sm font-normal text-foreground/50">МВт</span>
+                </p>
+              </div>
+
+              {/* Расчет выполнил */}
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 font-sans text-xs text-foreground/50">Выполнил:</span>
+                <input type="text" value={performer} onChange={e => setPerformer(e.target.value)}
                   placeholder="________________"
-                  className="border-b border-foreground/30 bg-transparent px-2 py-0.5 text-sm text-foreground/80 outline-none focus:border-foreground/60 w-48"
-                />
+                  className="flex-1 border-b border-foreground/20 bg-transparent px-1 py-0.5 text-xs text-foreground/70 outline-none focus:border-foreground/50" />
               </div>
             </div>
           )}
-        </div>
-
-        {/* Легенда */}
-        <div className="mt-4 flex items-start gap-3 rounded-xl border border-foreground/8 bg-foreground/3 px-4 py-3">
-          <Icon name="Info" size={14} className="mt-0.5 shrink-0 text-foreground/30" />
-          <p className="font-mono text-xs text-foreground/40 leading-relaxed">
-            <span className="inline-block h-3 w-4 rounded-sm bg-green-500/30 border border-green-500/40 mr-1 align-middle" />
-            Зелёные ячейки — изменяемые величины. Все остальные значения рассчитываются автоматически при изменении данных.
-          </p>
         </div>
       </div>
 
