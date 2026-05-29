@@ -655,6 +655,10 @@ export default function FireLoad() {
   return (
     <div className="relative min-h-screen bg-background text-foreground">
       <GrainOverlay />
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 animated-bg" />
+        <div className="absolute inset-0 bg-black/10" />
+      </div>
 
       {/* Шапка */}
       <div className="sticky top-0 z-40 border-b border-foreground/10 bg-background/90 backdrop-blur-md">

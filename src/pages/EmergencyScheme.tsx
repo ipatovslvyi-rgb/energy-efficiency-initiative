@@ -744,8 +744,12 @@ export default function EmergencyScheme() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-background">
       <GrainOverlay />
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 animated-bg" />
+        <div className="absolute inset-0 bg-black/10" />
+      </div>
 
       {/* Навигация */}
       <nav className="fixed left-0 right-0 top-0 z-[60] flex items-center justify-between px-4 py-3 md:px-6 md:py-4 bg-background/80 backdrop-blur-md border-b border-foreground/10">

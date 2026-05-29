@@ -562,6 +562,10 @@ export default function ExplosionTriangle() {
   return (
     <main className="relative min-h-screen bg-background text-foreground overflow-x-hidden">
       <GrainOverlay />
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 animated-bg" />
+        <div className="absolute inset-0 bg-black/10" />
+      </div>
 
       {/* Шапка */}
       <nav className="fixed left-0 right-0 top-0 z-[60] flex items-center justify-between px-6 py-6 md:px-12 bg-background/60 backdrop-blur-md border-b border-foreground/10">
