@@ -35,32 +35,49 @@ function fmt(n: number, digits = 2) {
   return n.toLocaleString("ru-RU", { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
-function calcResults(materials: Material[]) {
+function calcResults(materials: Material[], flowM3s: number) {
   if (materials.length === 0) return null
   const maxDensity = Math.max(...materials.map(m => m.density))
 
-  // Из Excel: обе ячейки (мощность и время) имеют одну формулу:
-  // = Σ(AA_i / МАКС(Y_i)) / 3600
-  // Проверка даёт: sumMQ / maxMQ * maxPsiQ = 8.52 МВт
-  // где sumMQ=Σ(m_i*Q_н_i), maxMQ=МАКС(m_i*Q_н_i), maxPsiQ=МАКС(ψ_i*Q_н_i)
-  // Проверка: 65600/40200*(0.043*42.6)=1.6318*1.8318=2.99 — нет
+  // Точная цепочка формул Excel (лист "Техника"):
+  // S_i  = m_i / ρ_max                        [м³ — объём]
+  // r_i  = (S_i * 3 / (4π))^(1/3)             [м — радиус шара]
+  // Ro_i = r_i * 4π                            [м² — поверхность шара]
+  // N_i  = m_i * Q_н_i                         [МДж — запас энергии]
+  // T1_i = m_i / (Ro_i * ψ_i) / 3600          [ч — время выгорания]
+  //        Проверка: 1200/(7.796*0.02)/3600 = 2.138 ✓
+  // W1_i = N_i / 3600 / T1_i = Ro_i*ψ_i*Q_н_i [МВт]
   //
-  // Используем физически корректные формулы:
-  // Q[МВт] = Σ(m_i / ρ_max * ψ_i * Q_н_i)
-  // τ[ч]   = Σ(m_i * Q_н_i) / Q[МВт] / 3600
+  // Q[МВт] = Σ(N_i) / МАКС(T1_i) / 3600       Проверка: 65600/2.138/3600=8.52 ✓
+  // τ[ч]   = Σ(m_i) / МАКС(T1_i) / 3600       Проверка: 1800/2.138/3600=0.234... нет
+  //          τ из Excel: та же формула с AA=m → 1800/2.138/3600=0.234 ≠ 2.14
+  //          Значит для времени Y другой: T1_time_i = m_i/(Ro_i*ψ_i*Q_н_i)/60
+  //          T1_time_резина = 1200/(7.796*0.02*33.5)/60 = 1200/5.223/60 = 3.832 — нет
+  //          Используем: τ = sumN / Q / 3600 (из энергетического баланса)
 
-  let powerMW = 0
-  for (const m of materials) {
-    powerMW += (m.mass / maxDensity) * m.burnRate * m.heatValue
-  }
+  const items = materials.map(m => {
+    const S  = m.mass / maxDensity
+    const r  = Math.pow((S * 3) / (4 * Math.PI), 1 / 3)
+    const Ro = r * 4 * Math.PI
+    const N  = m.mass * m.heatValue
+    const T1 = m.mass / (Ro * m.burnRate) / 3600
+    const W1 = T1 > 0 ? N / 3600 / T1 : 0
+    return { S, Ro, N, T1, W1 }
+  })
 
-  const sumMQ       = materials.reduce((s, m) => s + m.mass * m.heatValue, 0)
-  const totalArea   = materials.reduce((s, m) => s + m.mass / maxDensity, 0)
+  const maxT1 = Math.max(...items.map(it => it.T1))
+  const sumN  = items.reduce((s, it) => s + it.N, 0)
+
+  const powerMW = maxT1 > 0 ? sumN / maxT1 / 3600 : 0
+  // τ[ч] = sumN / powerMW / 3600 (суммарная энергия / мощность)
+  const sumM  = materials.reduce((s, m) => s + m.mass, 0)
+  const timeH = powerMW > 0 ? sumN / powerMW / 3600 : 0
+  const timeMin = timeH * 60
+
+  const totalArea   = items.reduce((s, it) => s + it.S, 0)
   const rateHeatSum = materials.reduce((s, m) => s + m.burnRate * m.heatValue, 0)
-  const timeH       = powerMW > 0 ? sumMQ / powerMW / 3600 : 0
-  const timeMin     = timeH * 60
 
-  return { powerMW, timeH, timeMin, maxDensity, rateHeatSum, totalArea }
+  return { powerMW, timeH, timeMin, maxDensity, rateHeatSum, totalArea, items, maxT1 }
 }
 
 // Расчётная температура горения техники
@@ -117,8 +134,8 @@ export default function FireLoad() {
   const [performer, setPerformer] = useState("")
   const [showPresets, setShowPresets] = useState(false)
 
-  const results = calcResults(materials)
   const flowNum = parseFloat(flowM3s.replace(",", "."))
+  const results = calcResults(materials, isNaN(flowNum) ? 0 : flowNum)
   const deltaT = results ? calcDeltaT(results.powerMW, flowNum) : null
 
   function updateMaterial(id: string, field: keyof Material, raw: string) {
