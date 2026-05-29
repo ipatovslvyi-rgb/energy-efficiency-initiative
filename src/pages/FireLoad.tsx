@@ -33,6 +33,38 @@ const PRESET_MATERIALS = [
   { name: "Кабель ПВХ",               density: 1400, burnRate: 0.007, heatValue: 25.0 },
 ]
 
+// Справочник подземной горнорудной техники
+interface MachinePreset {
+  name: string
+  type: string
+  capacity: string
+  rubber: number   // масса резины, кг
+  diesel: number   // масса дизтоплива, кг
+  oil: number      // масса масла (моторное + гидравлика + трансмиссия), кг
+}
+
+const MACHINE_PRESETS: MachinePreset[] = [
+  { name: "Sandvik TH315",       type: "Самосвал",         capacity: "15 т",   rubber: 780,  diesel: 260, oil: 160 },
+  { name: "Sandvik TH430",       type: "Самосвал",         capacity: "30 т",   rubber: 1200, diesel: 400, oil: 220 },
+  { name: "Sandvik TH540",       type: "Самосвал",         capacity: "40 т",   rubber: 1500, diesel: 520, oil: 280 },
+  { name: "Sandvik LH203",       type: "ПДМ",              capacity: "2 т",    rubber: 260,  diesel: 100, oil: 70  },
+  { name: "Sandvik LH307",       type: "ПДМ",              capacity: "7 т",    rubber: 520,  diesel: 180, oil: 110 },
+  { name: "Sandvik LH514",       type: "ПДМ",              capacity: "14 т",   rubber: 900,  diesel: 280, oil: 180 },
+  { name: "Epiroc ST7 Scooptram",type: "ПДМ",              capacity: "6,8 т",  rubber: 480,  diesel: 170, oil: 120 },
+  { name: "Epiroc ST14 Scooptram",type: "ПДМ",             capacity: "14 т",   rubber: 900,  diesel: 280, oil: 200 },
+  { name: "Epiroc MT42",         type: "Самосвал",         capacity: "42 т",   rubber: 1600, diesel: 550, oil: 300 },
+  { name: "Caterpillar R1300G",  type: "ПДМ",              capacity: "13 т",   rubber: 850,  diesel: 260, oil: 180 },
+  { name: "Caterpillar R1600H",  type: "ПДМ",              capacity: "16 т",   rubber: 950,  diesel: 290, oil: 210 },
+  { name: "Caterpillar AD22",    type: "Самосвал",         capacity: "22 т",   rubber: 1000, diesel: 340, oil: 200 },
+  { name: "Caterpillar AD45B",   type: "Самосвал",         capacity: "41 т",   rubber: 1500, diesel: 530, oil: 290 },
+  { name: "Komatsu WJ-5",        type: "ПДМ",              capacity: "5 т",    rubber: 400,  diesel: 150, oil: 95  },
+  { name: "Normet Spraymec",     type: "Набрызг-машина",   capacity: "—",      rubber: 360,  diesel: 140, oil: 90  },
+  { name: "Epiroc Boomer T1D",   type: "Буровая установка","capacity": "—",   rubber: 800,  diesel: 290, oil: 240 },
+  { name: "Epiroc Boltec LC",    type: "Анкеровщик",       capacity: "—",      rubber: 480,  diesel: 180, oil: 140 },
+  { name: "ТН-545",              type: "Самосвал",         capacity: "45 т",   rubber: 1200, diesel: 400, oil: 200 },
+  { name: "БелАЗ-7555",         type: "Самосвал карьерный","capacity": "55 т", rubber: 2000, diesel: 700, oil: 400 },
+]
+
 let nextId = 4
 
 function fmt(n: number, digits = 2) {
@@ -297,6 +329,8 @@ export default function FireLoad() {
   const [flowM3s, setFlowM3s] = useState<string>("39,6")
   const [performer, setPerformer] = useState("")
   const [showPresets, setShowPresets] = useState(false)
+  const [showMachines, setShowMachines] = useState(false)
+  const [machineSearch, setMachineSearch] = useState("")
 
   const flowNum = parseFloat(flowM3s.replace(",", "."))
   const results = calcResults(materials, isNaN(flowNum) ? 0 : flowNum)
@@ -322,6 +356,17 @@ export default function FireLoad() {
 
   function addCustom() {
     setMaterials(prev => [...prev, { id: String(nextId++), name: "Материал", density: 1000, mass: 0, burnRate: 0.02, heatValue: 30 }])
+  }
+
+  function loadMachine(machine: MachinePreset) {
+    setMachineName(machine.name)
+    setMaterials([
+      { id: String(nextId++), name: "Резина",  density: 1200, mass: machine.rubber, burnRate: 0.02,  heatValue: 33.5 },
+      { id: String(nextId++), name: "Дизель",  density: 830,  mass: machine.diesel, burnRate: 0.043, heatValue: 42.6 },
+      { id: String(nextId++), name: "Масло",   density: 900,  mass: machine.oil,    burnRate: 0.043, heatValue: 41.8 },
+    ])
+    setShowMachines(false)
+    setMachineSearch("")
   }
 
   const maxDensity = materials.length > 0 ? Math.max(...materials.map(m => m.density)) : 0
@@ -353,6 +398,13 @@ export default function FireLoad() {
             >
               <Icon name="Plus" size={12} />
               Добавить материал
+            </button>
+            <button
+              onClick={() => setShowMachines(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 font-mono text-xs text-amber-400 transition-all hover:bg-amber-500/20"
+            >
+              <Icon name="BookOpen" size={12} />
+              Справочник техники
             </button>
             {results && (
               <button
@@ -604,6 +656,97 @@ export default function FireLoad() {
           </p>
         </div>
       </div>
+
+      {/* Модальное окно справочника техники */}
+      {showMachines && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setShowMachines(false)} />
+          <div className="relative w-full max-w-3xl rounded-2xl border border-foreground/15 bg-background shadow-2xl overflow-hidden">
+            {/* Шапка */}
+            <div className="flex items-center justify-between border-b border-foreground/10 px-6 py-4">
+              <div>
+                <h2 className="font-sans text-base font-semibold text-foreground">Справочник горнорудной техники</h2>
+                <p className="font-mono text-xs text-foreground/40">Выберите машину — данные заполнятся автоматически</p>
+              </div>
+              <button onClick={() => setShowMachines(false)} className="text-foreground/40 hover:text-foreground transition-colors">
+                <Icon name="X" size={18} />
+              </button>
+            </div>
+
+            {/* Поиск */}
+            <div className="border-b border-foreground/10 px-6 py-3">
+              <div className="flex items-center gap-2 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-2">
+                <Icon name="Search" size={14} className="text-foreground/40 shrink-0" />
+                <input
+                  type="text"
+                  value={machineSearch}
+                  onChange={e => setMachineSearch(e.target.value)}
+                  placeholder="Поиск по названию или типу..."
+                  className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-foreground/30"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Список машин */}
+            <div className="overflow-y-auto max-h-[60vh] p-4">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {MACHINE_PRESETS
+                  .filter(m =>
+                    machineSearch === "" ||
+                    m.name.toLowerCase().includes(machineSearch.toLowerCase()) ||
+                    m.type.toLowerCase().includes(machineSearch.toLowerCase())
+                  )
+                  .map(machine => (
+                    <button
+                      key={machine.name}
+                      onClick={() => loadMachine(machine)}
+                      className="group flex flex-col gap-2 rounded-xl border border-foreground/10 bg-foreground/3 p-4 text-left transition-all hover:border-amber-500/40 hover:bg-amber-500/5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-sans text-sm font-semibold text-foreground/90 group-hover:text-foreground leading-tight">{machine.name}</p>
+                          <p className="font-mono text-xs text-foreground/40 mt-0.5">{machine.type}{machine.capacity !== "—" ? ` · ${machine.capacity}` : ""}</p>
+                        </div>
+                        <Icon name="ChevronRight" size={14} className="mt-0.5 shrink-0 text-foreground/20 group-hover:text-amber-400 transition-colors" />
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="rounded-lg bg-foreground/5 px-2 py-1.5 text-center">
+                          <p className="font-mono text-[10px] text-foreground/30 uppercase">Резина</p>
+                          <p className="font-sans text-sm font-bold text-foreground/80">{machine.rubber}</p>
+                          <p className="font-mono text-[9px] text-foreground/25">кг</p>
+                        </div>
+                        <div className="rounded-lg bg-blue-500/8 px-2 py-1.5 text-center">
+                          <p className="font-mono text-[10px] text-blue-400/50 uppercase">Дизель</p>
+                          <p className="font-sans text-sm font-bold text-blue-300/80">{machine.diesel}</p>
+                          <p className="font-mono text-[9px] text-blue-400/30">кг</p>
+                        </div>
+                        <div className="rounded-lg bg-orange-500/8 px-2 py-1.5 text-center">
+                          <p className="font-mono text-[10px] text-orange-400/50 uppercase">Масло</p>
+                          <p className="font-sans text-sm font-bold text-orange-300/80">{machine.oil}</p>
+                          <p className="font-mono text-[9px] text-orange-400/30">кг</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+              </div>
+              {MACHINE_PRESETS.filter(m =>
+                machineSearch === "" ||
+                m.name.toLowerCase().includes(machineSearch.toLowerCase()) ||
+                m.type.toLowerCase().includes(machineSearch.toLowerCase())
+              ).length === 0 && (
+                <p className="py-8 text-center font-mono text-sm text-foreground/30">Ничего не найдено</p>
+              )}
+            </div>
+
+            <div className="border-t border-foreground/10 px-6 py-3">
+              <p className="font-mono text-xs text-foreground/30">
+                Данные приблизительные. После выбора можно скорректировать значения вручную.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
