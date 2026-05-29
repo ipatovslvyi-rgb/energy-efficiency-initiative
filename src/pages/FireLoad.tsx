@@ -355,6 +355,196 @@ async function exportFireLoadToWord(
   URL.revokeObjectURL(url)
 }
 
+// Экспорт конвейерной ленты в Word — Приложение №3
+async function exportBeltToWord(
+  inp: BeltInputs,
+  results: NonNullable<ReturnType<typeof calcBelt>>,
+  performer: string,
+) {
+  const thin = { style: BorderStyle.SINGLE, size: 4, color: "999999" }
+  const border = { top: thin, bottom: thin, left: thin, right: thin }
+
+  const cell = (text: string, opts: {
+    bold?: boolean; italic?: boolean; shade?: boolean; green?: boolean;
+    align?: (typeof AlignmentType)[keyof typeof AlignmentType];
+    width?: number;
+  } = {}) =>
+    new TableCell({
+      borders: border,
+      width: opts.width !== undefined ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
+      shading: opts.green
+        ? { type: ShadingType.SOLID, color: "C6EFCE", fill: "C6EFCE" }
+        : opts.shade
+          ? { type: ShadingType.SOLID, color: "DDEBF7", fill: "DDEBF7" }
+          : undefined,
+      children: [new Paragraph({
+        alignment: opts.align ?? AlignmentType.CENTER,
+        children: [new TextRun({ text, bold: opts.bold, italics: opts.italic, size: 20 })],
+      })],
+    })
+
+  const fmtW = (n: number, d = 2) =>
+    n.toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d })
+
+  // Таблица исходных данных
+  const inputRows: [string, string][] = [
+    ["Скорость выгорания ленточного полотна, кг/(м²·с)", inp.burnRate.replace(".", ",")],
+    ["Плотность ленточного полотна, кг/м³",              inp.density.replace(".", ",")],
+    ["Ширина ленточного полотна, м",                     inp.width.replace(".", ",")],
+    ["Общая длина ленточного полотна, м",                inp.length.replace(".", ",")],
+    ["Общая толщина ленточного полотна, м",              inp.thickness.replace(".", ",")],
+    ["Скорость воздуха в выработке, м/с",                inp.airSpeed.replace(".", ",")],
+    ["Скорость продвижения пламени, м/с",                inp.flameSpeed.replace(".", ",")],
+  ]
+
+  const inputTable = new Table({
+    width: { size: 65, type: WidthType.PERCENTAGE },
+    rows: inputRows.map(([label, val]) =>
+      new TableRow({ children: [
+        cell(label, { align: AlignmentType.LEFT, width: 75 }),
+        cell(val, { green: true, bold: true, width: 25 }),
+      ]}),
+    ),
+  })
+
+  // Таблица справочных характеристик
+  const refTable = new Table({
+    width: { size: 40, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({ children: [cell("Низшая теплота сгорания, МДж/кг", { align: AlignmentType.LEFT }), cell("33,5", { bold: true })] }),
+      new TableRow({ children: [cell("Объём, м³", { align: AlignmentType.LEFT }), cell(fmtW(results.volume, 3), { bold: true })] }),
+      new TableRow({ children: [cell("Масса, кг", { align: AlignmentType.LEFT }), cell(fmtW(results.mass, 2), { bold: true })] }),
+      new TableRow({ children: [cell("Шаг по времени, мин", { align: AlignmentType.LEFT }), cell("60", { bold: true })] }),
+      new TableRow({ children: [cell("Суммарная теплота, МДж", { align: AlignmentType.LEFT, bold: true }), cell(fmtW(results.heatTotal, 2), { bold: true })] }),
+    ],
+  })
+
+  // Заголовки таблицы по времени
+  const timeHeaders = ["Время,\nмин", "Расстояние пройденное\nпламенем, м", "Площадь\nгорения, м²", "Масса\nвыгорания, кг", "Объём\nвыгорания", "Выгоревшая\nдлина, м", "Мощность\nМВт"]
+  const timeHeaderRow = new TableRow({
+    children: timeHeaders.map(h =>
+      new TableCell({
+        borders: border,
+        shading: { type: ShadingType.SOLID, color: "DDEBF7", fill: "DDEBF7" },
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: h, bold: true, size: 18 })],
+        })],
+      }),
+    ),
+  })
+
+  const timeDataRows = results.rows.map(row => {
+    const isRow30 = row.t === 30
+    const isRow60 = row.t === 60
+    const shade = isRow30 || isRow60
+    return new TableRow({
+      children: [
+        cell(String(row.t), { shade }),
+        cell(fmtW(row.dist, 3), { shade }),
+        cell(fmtW(row.area, 2), { shade }),
+        cell(fmtW(row.massBurned, 2), { shade }),
+        cell(fmtW(row.volBurned, 2), { shade }),
+        cell(fmtW(row.lengthBurned, 2), { shade }),
+        cell(fmtW(row.powerMW, 2), { bold: true, shade }),
+      ],
+    })
+  })
+
+  const timeTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [timeHeaderRow, ...timeDataRows],
+  })
+
+  // Таблица температуры
+  const flowVal = parseFloat(inp.flowM3s.replace(",", "."))
+  const tempTable = new Table({
+    width: { size: 40, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({ children: [
+        cell("Мощность, МВт", { bold: true, shade: true }),
+        cell("Расход, м³/с", { bold: true, shade: true }),
+        cell("Δt, °C", { bold: true, shade: true }),
+      ]}),
+      new TableRow({ children: [
+        cell(fmtW(results.power60, 2)),
+        cell(inp.flowM3s.replace(".", ","), { green: true }),
+        cell(fmtW(results.deltaTmax, 1), { bold: true }),
+      ]}),
+    ],
+  })
+
+  const powerMax = Math.max(results.power30, results.power60)
+
+  const children = [
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      children: [new TextRun({ text: "Приложение №3", size: 22 })],
+    }),
+    new Paragraph({ children: [] }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: "Расчет мощности пожара конвейерной ленты", bold: true, size: 28 })],
+      spacing: { after: 400 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: "Исходные данные для выполнения расчета", bold: true, size: 24 })],
+      spacing: { after: 200 },
+    }),
+    inputTable,
+    new Paragraph({ children: [] }),
+    refTable,
+    new Paragraph({ children: [] }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: "Расчетная температура горения ленты", bold: true, size: 22 })],
+      spacing: { after: 100 },
+    }),
+    tempTable,
+    new Paragraph({ children: [] }),
+    timeTable,
+    new Paragraph({ children: [] }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Мощность пожара через 30 минут после возникновения пожара составит   ", size: 22 }),
+        new TextRun({ text: fmtW(results.power30, 2), bold: true, size: 24 }),
+        new TextRun({ text: "   МВт", size: 22, italics: true }),
+      ],
+      spacing: { before: 200 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Мощность пожара через 60 минут после возникновения пожара составит   ", size: 22 }),
+        new TextRun({ text: fmtW(results.power60, 2), bold: true, size: 24 }),
+        new TextRun({ text: "   МВт", size: 22, italics: true }),
+      ],
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Для расчета устойчивости вентиляционного режима при возникновении пожара, принимаем максимальную величину мощности пожара   ", size: 22 }),
+        new TextRun({ text: fmtW(powerMax, 2), bold: true, size: 24 }),
+        new TextRun({ text: "   МВт", size: 22 }),
+      ],
+      spacing: { before: 200, after: 300 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Расчет выполнил: ", size: 22 }),
+        new TextRun({ text: performer || "________________", size: 22 }),
+      ],
+    }),
+  ]
+
+  const doc = new Document({ sections: [{ children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "Пожарная_нагрузка_Конвейерная_лента.docx"
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // Редактируемая ячейка (зелёная для изменяемых значений)
 function EditCell({
   value, onChange, isGreen = false, bold = false, italic = false, unit = ""
@@ -404,6 +594,7 @@ export default function FireLoad() {
   const [showMachines, setShowMachines] = useState(false)
   const [machineSearch, setMachineSearch] = useState("")
   const [activeTab, setActiveTab] = useState<"machine" | "belt">("machine")
+  const [beltPerformer, setBeltPerformer] = useState("")
 
   // ── Belt state ──
   const [belt, setBelt] = useState<BeltInputs>({
@@ -499,6 +690,15 @@ export default function FireLoad() {
                 Конв. лента
               </button>
             </div>
+            {activeTab === "belt" && beltResults && (
+              <button
+                onClick={() => exportBeltToWord(belt, beltResults, beltPerformer)}
+                className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 font-mono text-xs text-foreground/70 transition-all hover:border-foreground/40 hover:text-foreground"
+              >
+                <Icon name="FileText" size={12} />
+                Word
+              </button>
+            )}
             {activeTab === "machine" && (
               <>
                 <button
@@ -704,6 +904,18 @@ export default function FireLoad() {
                 </div>
               </div>
             )}
+
+            {/* Расчет выполнил */}
+            <div className="mt-6 flex items-center gap-2">
+              <span className="font-sans text-sm text-foreground/70">Расчет выполнил:</span>
+              <input
+                type="text"
+                value={beltPerformer}
+                onChange={e => setBeltPerformer(e.target.value)}
+                placeholder="________________"
+                className="border-b border-foreground/30 bg-transparent px-2 py-0.5 text-sm text-foreground/80 outline-none focus:border-foreground/60 w-48"
+              />
+            </div>
           </div>
         </div>
       )}
