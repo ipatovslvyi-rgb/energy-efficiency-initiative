@@ -7,7 +7,7 @@ export default function Ventilation() {
   const navigate = useNavigate()
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen text-foreground">
       <GrainOverlay />
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 animated-bg" />

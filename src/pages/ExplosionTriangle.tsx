@@ -560,7 +560,7 @@ export default function ExplosionTriangle() {
   const zoneColor = zone ? getZoneColor(zone) : null
 
   return (
-    <main className="relative min-h-screen bg-background text-foreground overflow-x-hidden">
+    <main className="relative min-h-screen text-foreground overflow-x-hidden">
       <GrainOverlay />
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 animated-bg" />
