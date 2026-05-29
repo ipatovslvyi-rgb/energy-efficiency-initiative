@@ -9,6 +9,8 @@ import ExplosionTriangle from "./pages/ExplosionTriangle";
 import EmergencyScheme from "./pages/EmergencyScheme";
 import Admin from "./pages/Admin";
 import FireLoad from "./pages/FireLoad";
+import Ventilation from "./pages/Ventilation";
+import Firefighting from "./pages/Firefighting";
 import NotFound from "./pages/NotFound";
 import { LicenseProvider } from "@/context/license-context";
 
@@ -27,6 +29,8 @@ const App = () => (
             <Route path="/emergency-scheme" element={<EmergencyScheme />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/fire-load" element={<FireLoad />} />
+            <Route path="/ventilation" element={<Ventilation />} />
+            <Route path="/firefighting" element={<Firefighting />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
