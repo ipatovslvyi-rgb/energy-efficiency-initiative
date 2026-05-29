@@ -343,29 +343,86 @@ export default function Index() {
           className="flex min-h-screen w-full flex-col justify-end px-6 pb-16 pt-24 md:px-12 md:pb-24"
         >
           <div className="mx-auto w-full max-w-7xl">
-          <div className="max-w-3xl">
-            <div className="mb-4 inline-block animate-in fade-in slide-in-from-bottom-4 rounded-full border border-foreground/20 bg-foreground/15 px-4 py-1.5 backdrop-blur-md duration-700">
-              <p className="font-mono text-xs text-foreground/90">Инженерное ПО для СДС и ГИО</p>
+          <div className="flex flex-col gap-12 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="mb-4 inline-block animate-in fade-in slide-in-from-bottom-4 rounded-full border border-foreground/20 bg-foreground/15 px-4 py-1.5 backdrop-blur-md duration-700">
+                <p className="font-mono text-xs text-foreground/90">Инженерное ПО для СДС и ГИО</p>
+              </div>
+              <h1 className="mb-6 animate-in fade-in slide-in-from-bottom-8 font-sans text-6xl font-light leading-[1.1] tracking-tight text-foreground duration-1000 md:text-7xl lg:text-8xl">
+                <span className="text-balance">
+                  Расчёты СДС и ГИО
+                </span>
+              </h1>
+              <p className="mb-8 max-w-xl animate-in fade-in slide-in-from-bottom-4 text-lg leading-relaxed text-foreground/90 duration-1000 delay-200 md:text-xl">
+                <span className="text-pretty">Профессиональный инструмент для Службы депрессионных съемок и группы инженерного обеспечения ФГУП "ВГСЧ"</span>
+              </p>
+              <div className="flex animate-in fade-in slide-in-from-bottom-4 flex-col gap-4 duration-1000 delay-300 sm:flex-row sm:items-center">
+                <MagneticButton
+                  size="lg"
+                  variant="primary"
+                  onClick={() => scrollToSection(1)}
+                >
+                  Начать расчет
+                </MagneticButton>
+                <MagneticButton size="lg" variant="secondary" onClick={() => scrollToSection(4)}>
+                  О нас
+                </MagneticButton>
+              </div>
             </div>
-            <h1 className="mb-6 animate-in fade-in slide-in-from-bottom-8 font-sans text-6xl font-light leading-[1.1] tracking-tight text-foreground duration-1000 md:text-7xl lg:text-8xl">
-              <span className="text-balance">
-                Расчёты СДС и ГИО
-              </span>
-            </h1>
-            <p className="mb-8 max-w-xl animate-in fade-in slide-in-from-bottom-4 text-lg leading-relaxed text-foreground/90 duration-1000 delay-200 md:text-xl">
-              <span className="text-pretty">Профессиональный инструмент для Службы депрессионных съемок и группы инженерного обеспечения ФГУП "ВГСЧ"</span>
-            </p>
-            <div className="flex animate-in fade-in slide-in-from-bottom-4 flex-col gap-4 duration-1000 delay-300 sm:flex-row sm:items-center">
-              <MagneticButton
-                size="lg"
-                variant="primary"
-                onClick={() => scrollToSection(1)}
-              >
-                Начать расчет
-              </MagneticButton>
-              <MagneticButton size="lg" variant="secondary" onClick={() => scrollToSection(4)}>
-                О нас
-              </MagneticButton>
+
+            {/* Панель быстрого доступа к расчётам */}
+            <div className="animate-in fade-in slide-in-from-right-8 duration-1000 delay-400 lg:pb-2">
+              <p className="mb-3 font-mono text-xs text-foreground/40 uppercase tracking-widest">Расчёты</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
+                {[
+                  { label: "Схема аварии", href: "/emergency-scheme", icon: "AlertTriangle", available: true },
+                  { label: "Вентиляция", href: "#ventilation", icon: "Wind", available: true },
+                  { label: "Пожаротушение", href: "#firefighting", icon: "Flame", available: true },
+                  { label: "Пожарная нагрузка", href: null, icon: "Layers", available: false },
+                  { label: "Устойчивость", href: null, icon: "ShieldCheck", available: false },
+                  { label: "ЗВТ", href: null, icon: "Zap", available: false },
+                  { label: "Треугольник", href: "/explosion-triangle", icon: "Triangle", available: true },
+                  { label: "Пакетный расчет", href: null, icon: "Package", available: false },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={() => {
+                      if (!item.available) return;
+                      if (item.href?.startsWith("/")) {
+                        window.location.href = item.href;
+                      } else if (item.href?.startsWith("#")) {
+                        const idx = item.href === "#ventilation" ? 1 : item.href === "#firefighting" ? 2 : 0;
+                        scrollToSection(idx);
+                      }
+                    }}
+                    disabled={!item.available}
+                    className={`group relative flex items-center gap-2.5 rounded-xl border px-4 py-3 text-left transition-all duration-200
+                      ${item.available
+                        ? "border-foreground/20 bg-foreground/8 hover:border-foreground/40 hover:bg-foreground/15 cursor-pointer"
+                        : "border-foreground/10 bg-foreground/4 cursor-default opacity-50"
+                      }`}
+                  >
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200
+                      ${item.available
+                        ? "bg-blue-500/20 text-blue-400 group-hover:bg-blue-500/30"
+                        : "bg-foreground/8 text-foreground/30"
+                      }`}>
+                      <Icon name={item.icon} size={14} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-sm font-medium leading-tight ${item.available ? "text-foreground/90" : "text-foreground/40"}`}>
+                        {item.label}
+                      </span>
+                      {!item.available && (
+                        <span className="font-mono text-[10px] text-foreground/30 leading-tight">в разработке</span>
+                      )}
+                    </div>
+                    {item.available && (
+                      <Icon name="ChevronRight" size={12} className="ml-auto text-foreground/30 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-foreground/60" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           </div>
