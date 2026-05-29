@@ -2,6 +2,10 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { GrainOverlay } from "@/components/grain-overlay"
 import Icon from "@/components/ui/icon"
+import {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  WidthType, AlignmentType, BorderStyle, HeadingLevel, ShadingType,
+} from "docx"
 
 interface Material {
   id: string
@@ -85,6 +89,166 @@ function calcResults(materials: Material[], flowM3s: number) {
 function calcDeltaT(powerMW: number, flowM3s: number) {
   if (!powerMW || !flowM3s) return null
   return powerMW * 1_000_000 / (flowM3s * 1.25 * 1005)
+}
+
+// Экспорт в Word — документ "Приложение №1"
+async function exportFireLoadToWord(
+  machineName: string,
+  materials: Material[],
+  results: NonNullable<ReturnType<typeof calcResults>>,
+  flowM3s: number,
+  deltaT: number | null,
+  performer: string,
+) {
+  const thin = { style: BorderStyle.SINGLE, size: 4, color: "999999" }
+  const border = { top: thin, bottom: thin, left: thin, right: thin }
+
+  const cell = (text: string, opts: {
+    bold?: boolean; italic?: boolean; shade?: boolean;
+    align?: (typeof AlignmentType)[keyof typeof AlignmentType];
+    width?: number;
+  } = {}) =>
+    new TableCell({
+      borders: border,
+      width: opts.width !== undefined ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
+      shading: opts.shade ? { type: ShadingType.SOLID, color: "C6EFCE", fill: "C6EFCE" } : undefined,
+      children: [new Paragraph({
+        alignment: opts.align ?? AlignmentType.CENTER,
+        children: [new TextRun({
+          text,
+          bold: opts.bold,
+          italics: opts.italic,
+          size: 22,
+        })],
+      })],
+    })
+
+  // Заголовочные строки таблицы
+  const headerRows = [
+    new TableRow({ children: [
+      cell("Техника", { bold: true, italic: true, width: 30 }),
+      new TableCell({
+        borders: border,
+        columnSpan: materials.length,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: machineName, italics: true, size: 22 })] })],
+      }),
+      cell("Ед. изм.", { bold: true, width: 15 }),
+    ]}),
+    new TableRow({ children: [
+      cell("Материал", { bold: true }),
+      ...materials.map(m => cell(m.name, { bold: true })),
+      cell("", {}),
+    ]}),
+  ]
+
+  const dataRows = [
+    new TableRow({ children: [
+      cell("Плотность", { italic: true, align: AlignmentType.LEFT }),
+      ...materials.map(m => cell(String(m.density), { italic: true, shade: false })),
+      cell("кг/м³", { italic: true }),
+    ]}),
+    new TableRow({ children: [
+      cell("Масса", { bold: true, align: AlignmentType.LEFT }),
+      ...materials.map(m => cell(String(m.mass), { bold: true, shade: true })),
+      cell("кг", {}),
+    ]}),
+    new TableRow({ children: [
+      cell("Скорость выгорания", { align: AlignmentType.LEFT }),
+      ...materials.map(m => cell(String(m.burnRate), {})),
+      cell("кг/(м²·с)", { italic: true }),
+    ]}),
+    new TableRow({ children: [
+      cell("Низшая теплота сгорания", { align: AlignmentType.LEFT }),
+      ...materials.map(m => cell(String(m.heatValue), {})),
+      cell("МДж/кг", { italic: true }),
+    ]}),
+  ]
+
+  const children = [
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      children: [new TextRun({ text: "Приложение №1", size: 22 })],
+    }),
+    new Paragraph({ children: [] }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: "Расчет мощности пожара техники", bold: true, size: 28 })],
+      spacing: { after: 300 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: "Исходные данные для выполнения расчета:", bold: true, size: 24 })],
+      spacing: { after: 200 },
+    }),
+    new Table({
+      width: { size: 60, type: WidthType.PERCENTAGE },
+      rows: [...headerRows, ...dataRows],
+    }),
+    new Paragraph({ children: [] }),
+    // Результаты
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Мощность: ", size: 24 }),
+        new TextRun({ text: fmt(results.powerMW), bold: true, size: 28 }),
+        new TextRun({ text: "  МВт", size: 24, italics: true }),
+      ],
+      spacing: { before: 200 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Время: ", size: 24 }),
+        new TextRun({ text: fmt(results.timeH), bold: true, size: 28 }),
+        new TextRun({ text: "  Часов   или   ", size: 24, italics: true }),
+        new TextRun({ text: fmt(results.timeMin, 1), bold: true, size: 28 }),
+        new TextRun({ text: "  мин", size: 24, italics: true }),
+      ],
+      spacing: { after: 300 },
+    }),
+    // Таблица температуры
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: "Расчетная температура горения техники", bold: true, size: 22 })],
+      spacing: { after: 100 },
+    }),
+    new Table({
+      width: { size: 40, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({ children: [
+          cell("Мощность, мВт", { bold: true, shade: true }),
+          cell("Расход, м³/с", { bold: true, shade: true }),
+          cell("Δt, °C", { bold: true, shade: true }),
+        ]}),
+        new TableRow({ children: [
+          cell(fmt(results.powerMW)),
+          cell(fmt(flowM3s, 1), { shade: true }),
+          cell(deltaT !== null ? fmt(deltaT, 1) : "—", { bold: true }),
+        ]}),
+      ],
+    }),
+    new Paragraph({ children: [] }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Для расчета устойчивости вентиляционного режима при возникновении пожара, принимаем максимальную величину мощности пожара  ", size: 22 }),
+        new TextRun({ text: fmt(results.powerMW), bold: true, size: 22 }),
+        new TextRun({ text: "  МВт", size: 22 }),
+      ],
+      spacing: { before: 200, after: 300 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Расчет выполнил: ", size: 22 }),
+        new TextRun({ text: performer || "________________", size: 22 }),
+      ],
+    }),
+  ]
+
+  const doc = new Document({ sections: [{ children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `Пожарная_нагрузка_${machineName}.docx`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // Редактируемая ячейка (зелёная для изменяемых значений)
@@ -190,6 +354,15 @@ export default function FireLoad() {
               <Icon name="Plus" size={12} />
               Добавить материал
             </button>
+            {results && (
+              <button
+                onClick={() => exportFireLoadToWord(machineName, materials, results, flowNum, deltaT, performer)}
+                className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 font-mono text-xs text-foreground/70 transition-all hover:border-foreground/40 hover:text-foreground"
+              >
+                <Icon name="FileText" size={12} />
+                Word
+              </button>
+            )}
           </div>
         </div>
       </div>
