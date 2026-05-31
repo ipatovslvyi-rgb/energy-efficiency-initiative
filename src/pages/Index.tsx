@@ -97,10 +97,10 @@ export default function Index() {
             )}
           </div>
 
-          <button className="font-sans text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
+          <button onClick={() => navigate("/reference")} className="font-sans text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
             Справочник
           </button>
-          <button className="font-sans text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
+          <button onClick={() => navigate("/about")} className="font-sans text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
             О нас
           </button>
         </div>
@@ -155,6 +155,26 @@ export default function Index() {
                 {!item.available && <span className="ml-auto font-mono text-[10px] text-foreground/25">в разработке</span>}
               </button>
             ))}
+            <div className="my-3 h-px bg-foreground/10" />
+            <p className="font-mono text-[10px] text-foreground/30 uppercase tracking-widest px-3 mb-2">Разделы</p>
+            <button
+              onClick={() => { navigate("/reference"); setMobileMenuOpen(false) }}
+              className="flex items-center gap-3 text-left px-3 py-3 rounded-xl font-sans text-base text-foreground/80 hover:bg-foreground/5 hover:text-foreground transition-colors"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-foreground/8 text-foreground/50">
+                <Icon name="BookMarked" size={14} />
+              </div>
+              Справочник
+            </button>
+            <button
+              onClick={() => { navigate("/about"); setMobileMenuOpen(false) }}
+              className="flex items-center gap-3 text-left px-3 py-3 rounded-xl font-sans text-base text-foreground/80 hover:bg-foreground/5 hover:text-foreground transition-colors"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-foreground/8 text-foreground/50">
+                <Icon name="Info" size={14} />
+              </div>
+              О нас
+            </button>
             <div className="my-3 h-px bg-foreground/10" />
             <button
               onClick={() => { setMobileMenuOpen(false); setSearchOpen(true) }}
@@ -214,7 +234,7 @@ export default function Index() {
                 <MagneticButton size="lg" variant="primary" onClick={() => navigate("/emergency-scheme")}>
                   Начать расчет
                 </MagneticButton>
-                <MagneticButton size="lg" variant="secondary" onClick={() => setSearchOpen(true)}>
+                <MagneticButton size="lg" variant="secondary" onClick={() => navigate("/about")}>
                   О нас
                 </MagneticButton>
               </div>

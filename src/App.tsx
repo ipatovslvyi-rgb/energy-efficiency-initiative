@@ -11,6 +11,8 @@ import Admin from "./pages/Admin";
 import FireLoad from "./pages/FireLoad";
 import Ventilation from "./pages/Ventilation";
 import Firefighting from "./pages/Firefighting";
+import Reference from "./pages/Reference";
+import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import { LicenseProvider } from "@/context/license-context";
 
@@ -31,6 +33,8 @@ const App = () => (
             <Route path="/fire-load" element={<FireLoad />} />
             <Route path="/ventilation" element={<Ventilation />} />
             <Route path="/firefighting" element={<Firefighting />} />
+            <Route path="/reference" element={<Reference />} />
+            <Route path="/about" element={<About />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
