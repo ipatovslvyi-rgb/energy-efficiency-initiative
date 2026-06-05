@@ -28,7 +28,7 @@ export default function Index() {
     { label: "Пожаротушение",     href: "/firefighting",        icon: "Flame",         available: true  },
     { label: "Пожарная нагрузка", href: "/fire-load",           icon: "Layers",        available: true  },
     { label: "Устойчивость",      href: null,                   icon: "ShieldCheck",   available: false },
-    { label: "ЗВТ",               href: null,                   icon: "Zap",           available: false },
+    { label: "ЗВТ",               href: "/zvt",                 icon: "Zap",           available: true  },
     { label: "Треугольник",       href: "/explosion-triangle",  icon: "Triangle",      available: true  },
     { label: "Пакетный расчет",   href: null,                   icon: "Package",       available: false },
   ]
