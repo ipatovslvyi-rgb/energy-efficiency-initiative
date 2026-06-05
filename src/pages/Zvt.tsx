@@ -280,7 +280,7 @@ export default function Zvt() {
   const forbidden = tempNum > 40
 
   return (
-    <div className="relative min-h-screen text-foreground">
+    <div className="relative flex h-screen flex-col overflow-hidden text-foreground">
       <GrainOverlay />
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 animated-bg" />
@@ -288,8 +288,8 @@ export default function Zvt() {
       </div>
 
       {/* Шапка */}
-      <nav className="sticky top-0 z-40 border-b border-foreground/10 bg-background/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 md:px-8">
+      <nav className="shrink-0 border-b border-foreground/10 bg-background/90 backdrop-blur-md z-40">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate("/")}
@@ -302,49 +302,52 @@ export default function Zvt() {
             <span className="font-sans text-sm font-medium text-foreground">ЗВТ</span>
             <span className="hidden font-mono text-xs text-foreground/40 sm:block">— Зона высоких температур</span>
           </div>
-          <span className="font-mono text-[10px] text-foreground/30 hidden md:block">
-            Приказ Ростехнадзора №520 · Приложение 6
-          </span>
+          <div className="flex items-center gap-3">
+            {/* Вкладки перенесены в шапку */}
+            <div className="flex gap-1.5">
+              {([
+                { key: "calc",   label: "Расчёт",    icon: "Calculator" },
+                { key: "table1", label: "Табл. 1",   icon: "Table"  },
+                { key: "table2", label: "Табл. 2",   icon: "Table"  },
+              ] as const).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-sans text-xs transition-all ${
+                    activeTab === tab.key
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground"
+                  }`}
+                >
+                  <Icon name={tab.icon} size={11} />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <span className="font-mono text-[10px] text-foreground/30 hidden md:block">
+              Приказ №520 · Прил. 6
+            </span>
+          </div>
         </div>
       </nav>
 
-      <div className="mx-auto max-w-5xl px-4 py-6 md:px-8">
-
-        {/* Вкладки */}
-        <div className="mb-6 flex gap-2">
-          {([
-            { key: "calc",   label: "Расчёт",       icon: "Calculator" },
-            { key: "table1", label: "Таблица 1 (≥0°C)", icon: "Table"  },
-            { key: "table2", label: "Таблица 2 (<0°C)", icon: "Table"  },
-          ] as const).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 font-sans text-sm transition-all ${
-                activeTab === tab.key
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground"
-              }`}
-            >
-              <Icon name={tab.icon} size={13} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      {/* Тело — вся оставшаяся высота */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto flex w-full max-w-6xl flex-1 overflow-hidden px-4 py-4 md:px-8">
 
         {/* ══════════════ РАСЧЁТ ══════════════ */}
         {activeTab === "calc" && (
-          <div className="grid gap-5 md:grid-cols-[1fr_320px]">
+          <div className="flex w-full gap-4 overflow-hidden">
 
             {/* Левая колонка — ввод */}
-            <div className="flex flex-col gap-4">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/40">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/40 shrink-0">
                 Исходные данные
               </p>
 
               {/* Объект */}
-              <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4">
-                <label className="mb-1.5 block font-mono text-xs text-foreground/50">Объект / место работ</label>
+              <div className="shrink-0 rounded-xl border border-foreground/15 bg-foreground/5 px-3 py-2">
+                <label className="mb-1 block font-mono text-[10px] text-foreground/50">Объект / место работ</label>
                 <input
                   type="text"
                   value={object}
@@ -355,41 +358,39 @@ export default function Zvt() {
               </div>
 
               {/* Температура */}
-              <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4">
-                <label className="mb-3 block font-mono text-xs text-foreground/50">
+              <div className="shrink-0 rounded-xl border border-foreground/15 bg-foreground/5 px-3 py-2.5">
+                <label className="mb-2 block font-mono text-[10px] text-foreground/50">
                   Температура воздуха в ЗВТ, °C
                 </label>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <input
                     type="number"
                     value={temp}
                     onChange={e => setTemp(e.target.value)}
                     step="1"
-                    className={`w-28 rounded-lg border px-3 py-2 text-center font-mono text-2xl font-bold outline-none transition-colors ${
+                    className={`w-20 rounded-lg border px-2 py-1.5 text-center font-mono text-xl font-bold outline-none transition-colors ${
                       forbidden
                         ? "border-red-500/60 bg-red-500/10 text-red-400"
                         : "border-green-500/40 bg-green-500/10 text-foreground focus:border-green-500/60"
                     }`}
                   />
-                  <span className="font-mono text-xl text-foreground/50">°C</span>
+                  <span className="font-mono text-base text-foreground/50">°C</span>
                   {forbidden && (
-                    <span className="flex items-center gap-1.5 rounded-lg bg-red-500/15 px-3 py-1.5 font-mono text-xs text-red-400">
-                      <Icon name="AlertTriangle" size={12} />
-                      Запрещено (п. 13)
+                    <span className="flex items-center gap-1 rounded-lg bg-red-500/15 px-2 py-1 font-mono text-xs text-red-400">
+                      <Icon name="AlertTriangle" size={11} />
+                      Запрещено (п.13)
                     </span>
                   )}
                   {!forbidden && limits && (
-                    <span className="font-mono text-xs text-foreground/40">
-                      макс. {limits.moving} / {limits.stationary} мин
+                    <span className="font-mono text-[10px] text-foreground/40">
+                      {limits.moving} / {limits.stationary} мин
                     </span>
                   )}
                   {!forbidden && !limits && !isNaN(tempNum) && tempNum < 27 && (
-                    <span className="font-mono text-xs text-green-400/70">ниже порога ЗВТ</span>
+                    <span className="font-mono text-[10px] text-green-400/70">ниже ЗВТ</span>
                   )}
                 </div>
-
-                {/* Визуальный слайдер */}
-                <div className="mt-4">
+                <div className="mt-2">
                   <input
                     type="range"
                     min={-20}
@@ -399,77 +400,73 @@ export default function Zvt() {
                     onChange={e => setTemp(e.target.value)}
                     className="w-full accent-blue-400"
                   />
-                  <div className="mt-1 flex justify-between font-mono text-[10px] text-foreground/30">
-                    <span>−20°C</span>
-                    <span>0°C</span>
-                    <span>27°C</span>
-                    <span>40°C</span>
-                    <span>45°C</span>
+                  <div className="mt-0.5 flex justify-between font-mono text-[9px] text-foreground/25">
+                    <span>−20</span><span>0</span><span>27</span><span>40</span><span>45°C</span>
                   </div>
                 </div>
               </div>
 
               {/* Режим */}
-              <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4">
-                <label className="mb-3 block font-mono text-xs text-foreground/50">Режим работы</label>
+              <div className="shrink-0 rounded-xl border border-foreground/15 bg-foreground/5 px-3 py-2.5">
+                <label className="mb-2 block font-mono text-[10px] text-foreground/50">Режим работы</label>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setMode("moving")}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 font-sans text-sm transition-all ${
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 font-sans text-xs transition-all ${
                       mode === "moving"
                         ? "border-blue-500/60 bg-blue-500/15 text-blue-300"
                         : "border-foreground/20 text-foreground/60 hover:border-foreground/40"
                     }`}
                   >
-                    <Icon name="MoveHorizontal" size={14} />
+                    <Icon name="MoveHorizontal" size={12} />
                     Передвижение
                   </button>
                   <button
                     onClick={() => setMode("stationary")}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 font-sans text-sm transition-all ${
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 font-sans text-xs transition-all ${
                       mode === "stationary"
                         ? "border-blue-500/60 bg-blue-500/15 text-blue-300"
                         : "border-foreground/20 text-foreground/60 hover:border-foreground/40"
                     }`}
                   >
-                    <Icon name="MapPin" size={14} />
+                    <Icon name="MapPin" size={12} />
                     На месте
                   </button>
                 </div>
                 {mode === "moving" && (
-                  <p className="mt-2 font-mono text-[10px] text-foreground/35">
-                    По п. 12: 1/3 времени — движение вперёд, 2/3 — движение назад
+                  <p className="mt-1.5 font-mono text-[9px] text-foreground/35">
+                    По п. 12: 1/3 — вперёд, 2/3 — назад
                   </p>
                 )}
               </div>
 
-              {/* Время входа */}
-              <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4">
-                <label className="mb-2 block font-mono text-xs text-foreground/50">Время входа в ЗВТ</label>
-                <input
-                  type="time"
-                  value={entryTime}
-                  onChange={e => setEntryTime(e.target.value)}
-                  className="rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-2 font-mono text-2xl font-bold text-foreground outline-none focus:border-green-500/60"
-                />
-              </div>
-
-              {/* Исполнитель */}
-              <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4">
-                <label className="mb-1.5 block font-mono text-xs text-foreground/50">Расчёт выполнил</label>
-                <input
-                  type="text"
-                  value={performer}
-                  onChange={e => setPerformer(e.target.value)}
-                  placeholder="Ф.И.О., должность"
-                  className="w-full bg-transparent font-sans text-sm text-foreground placeholder:text-foreground/25 outline-none"
-                />
+              {/* Время входа + Исполнитель — в одну строку */}
+              <div className="shrink-0 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-foreground/15 bg-foreground/5 px-3 py-2.5">
+                  <label className="mb-1.5 block font-mono text-[10px] text-foreground/50">Время входа</label>
+                  <input
+                    type="time"
+                    value={entryTime}
+                    onChange={e => setEntryTime(e.target.value)}
+                    className="rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-1.5 font-mono text-lg font-bold text-foreground outline-none focus:border-green-500/60 w-full"
+                  />
+                </div>
+                <div className="rounded-xl border border-foreground/15 bg-foreground/5 px-3 py-2.5">
+                  <label className="mb-1.5 block font-mono text-[10px] text-foreground/50">Расчёт выполнил</label>
+                  <input
+                    type="text"
+                    value={performer}
+                    onChange={e => setPerformer(e.target.value)}
+                    placeholder="Ф.И.О., должность"
+                    className="w-full bg-transparent font-sans text-sm text-foreground placeholder:text-foreground/25 outline-none"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Правая колонка — результат */}
-            <div className="flex flex-col gap-4">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/40">
+            <div className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/40 shrink-0">
                 Результат
               </p>
 
@@ -496,92 +493,68 @@ export default function Zvt() {
               ) : result ? (
                 <>
                   {/* Время выхода — главная карточка */}
-                  <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-5 text-center">
-                    <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
+                  <div className="shrink-0 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-center">
+                    <p className="mb-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
                       Расчётное время выхода
                     </p>
-                    <p className="font-sans text-5xl font-bold tracking-tight text-foreground">
+                    <p className="font-sans text-4xl font-bold tracking-tight text-foreground">
                       {result.exitTimeCalc}
                     </p>
-                    <p className="mt-1 font-mono text-xs text-foreground/40">
+                    <p className="mt-0.5 font-mono text-[10px] text-foreground/40">
                       вход {result.entryTime} + {fmt(result.maxTotal, 0)} мин
                     </p>
                   </div>
 
                   {/* Максимальное время */}
-                  <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4 text-center">
-                    <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
+                  <div className="shrink-0 rounded-xl border border-foreground/15 bg-foreground/5 px-4 py-2.5 text-center">
+                    <p className="mb-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
                       Макс. время пребывания
                     </p>
-                    <p className="font-sans text-3xl font-bold text-foreground">
-                      {fmt(result.maxTotal, 0)} <span className="text-base font-normal text-foreground/50">мин</span>
+                    <p className="font-sans text-2xl font-bold text-foreground">
+                      {fmt(result.maxTotal, 0)} <span className="text-sm font-normal text-foreground/50">мин</span>
                     </p>
-                    <p className="mt-0.5 font-mono text-xs text-foreground/40">{minsToHHMM(result.maxTotal)}</p>
+                    <p className="font-mono text-[10px] text-foreground/40">{minsToHHMM(result.maxTotal)}</p>
                   </div>
 
                   {/* Разбивка движения */}
                   {mode === "moving" && (
-                    <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4">
-                      <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
+                    <div className="shrink-0 rounded-xl border border-foreground/15 bg-foreground/5 px-4 py-2.5">
+                      <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
                         Распределение времени
                       </p>
-                      <div className="space-y-3">
-                        {/* Визуальная полоса */}
-                        <div className="flex h-5 overflow-hidden rounded-full">
-                          <div
-                            className="flex items-center justify-center bg-blue-500/60 text-[9px] font-mono text-white"
-                            style={{ width: "33.33%" }}
-                          >
-                            1/3
-                          </div>
-                          <div
-                            className="flex items-center justify-center bg-blue-400/30 text-[9px] font-mono text-foreground/60"
-                            style={{ width: "66.67%" }}
-                          >
-                            2/3
-                          </div>
+                      <div className="flex h-4 overflow-hidden rounded-full mb-2">
+                        <div className="flex items-center justify-center bg-blue-500/60 text-[9px] font-mono text-white" style={{ width: "33.33%" }}>1/3</div>
+                        <div className="flex items-center justify-center bg-blue-400/30 text-[9px] font-mono text-foreground/60" style={{ width: "66.67%" }}>2/3</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="rounded-lg bg-blue-500/10 px-2 py-1.5">
+                          <p className="font-mono text-[9px] text-foreground/40">Вперёд</p>
+                          <p className="font-sans text-base font-bold text-foreground">{fmt(result.tForward, 0)}<span className="text-xs font-normal text-foreground/50"> мин</span></p>
+                          <p className="font-mono text-[9px] text-foreground/40">{minsToHHMM(result.tForward)}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-center">
-                          <div className="rounded-lg bg-blue-500/10 px-3 py-2">
-                            <p className="font-mono text-[10px] text-foreground/40">Вперёд</p>
-                            <p className="font-sans text-lg font-bold text-foreground">
-                              {fmt(result.tForward, 0)}<span className="text-xs font-normal text-foreground/50"> мин</span>
-                            </p>
-                            <p className="font-mono text-[10px] text-foreground/40">{minsToHHMM(result.tForward)}</p>
-                          </div>
-                          <div className="rounded-lg bg-foreground/5 px-3 py-2">
-                            <p className="font-mono text-[10px] text-foreground/40">Назад</p>
-                            <p className="font-sans text-lg font-bold text-foreground">
-                              {fmt(result.tBack, 0)}<span className="text-xs font-normal text-foreground/50"> мин</span>
-                            </p>
-                            <p className="font-mono text-[10px] text-foreground/40">{minsToHHMM(result.tBack)}</p>
-                          </div>
+                        <div className="rounded-lg bg-foreground/5 px-2 py-1.5">
+                          <p className="font-mono text-[9px] text-foreground/40">Назад</p>
+                          <p className="font-sans text-base font-bold text-foreground">{fmt(result.tBack, 0)}<span className="text-xs font-normal text-foreground/50"> мин</span></p>
+                          <p className="font-mono text-[9px] text-foreground/40">{minsToHHMM(result.tBack)}</p>
                         </div>
                       </div>
                     </div>
                   )}
 
                   {/* Временная шкала */}
-                  <div className="rounded-xl border border-foreground/15 bg-foreground/5 p-4">
-                    <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-foreground/40">
-                      Временна́я шкала
-                    </p>
+                  <div className="shrink-0 rounded-xl border border-foreground/15 bg-foreground/5 px-4 py-2.5">
+                    <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-foreground/40">Временна́я шкала</p>
                     <div className="relative">
                       <div className="h-1.5 w-full rounded-full bg-foreground/10">
                         {mode === "moving" && (
                           <>
                             <div className="absolute left-0 top-0 h-1.5 rounded-full bg-blue-500/70" style={{ width: "33.33%" }} />
-                            <div
-                              className="absolute top-0 h-1.5 rounded-r-full bg-blue-400/40"
-                              style={{ left: "33.33%", width: "66.67%" }}
-                            />
+                            <div className="absolute top-0 h-1.5 rounded-r-full bg-blue-400/40" style={{ left: "33.33%", width: "66.67%" }} />
                           </>
                         )}
-                        {mode === "stationary" && (
-                          <div className="h-1.5 w-full rounded-full bg-blue-500/50" />
-                        )}
+                        {mode === "stationary" && <div className="h-1.5 w-full rounded-full bg-blue-500/50" />}
                       </div>
-                      <div className="mt-2 flex justify-between font-mono text-[10px] text-foreground/40">
+                      <div className="mt-1.5 flex justify-between font-mono text-[10px] text-foreground/40">
                         <span>{result.entryTime}</span>
                         {mode === "moving" && (
                           <span className="text-blue-400/70">
@@ -595,10 +568,8 @@ export default function Zvt() {
                         <span className="text-red-400/70">{result.exitTimeCalc}</span>
                       </div>
                       {mode === "moving" && (
-                        <div className="mt-1 flex justify-between font-mono text-[9px] text-foreground/25">
-                          <span>вход</span>
-                          <span>поворот</span>
-                          <span>выход</span>
+                        <div className="flex justify-between font-mono text-[9px] text-foreground/25">
+                          <span>вход</span><span>поворот</span><span>выход</span>
                         </div>
                       )}
                     </div>
@@ -607,18 +578,17 @@ export default function Zvt() {
                   {/* Экспорт */}
                   <button
                     onClick={() => exportToWord(result, performer, object)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-foreground/20 bg-foreground/8 py-3 font-sans text-sm text-foreground/80 transition-all hover:border-foreground/40 hover:bg-foreground/12 hover:text-foreground"
+                    className="shrink-0 flex w-full items-center justify-center gap-2 rounded-xl border border-foreground/20 bg-foreground/8 py-2.5 font-sans text-sm text-foreground/80 transition-all hover:border-foreground/40 hover:text-foreground"
                   >
-                    <Icon name="Download" size={15} />
+                    <Icon name="Download" size={14} />
                     Экспорт в Word
                   </button>
 
                   {/* Нормативная база */}
-                  <div className="rounded-xl border border-foreground/10 bg-foreground/3 p-4">
-                    <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-foreground/30">Основание</p>
-                    <p className="font-mono text-[11px] text-foreground/45 leading-relaxed">
-                      Приказ Ростехнадзора от 11.12.2020 №520, Приложение 6,
-                      {tempNum >= 0 ? " Таблица №1" : " Таблица №2"}.
+                  <div className="shrink-0 rounded-xl border border-foreground/10 bg-foreground/3 px-3 py-2">
+                    <p className="font-mono text-[10px] text-foreground/40 leading-relaxed">
+                      Приказ Ростехнадзора №520, Прил. 6,
+                      {tempNum >= 0 ? " Табл. №1" : " Табл. №2"}.
                       {mode === "moving" && " П. 12: 1/3 — вперёд, 2/3 — назад."}
                     </p>
                   </div>
@@ -634,13 +604,14 @@ export default function Zvt() {
 
         {/* ══════════════ ТАБЛИЦА 1 ══════════════ */}
         {activeTab === "table1" && (
-          <div className="rounded-xl border border-foreground/15 overflow-hidden">
-            <div className="bg-foreground/8 px-5 py-3 border-b border-foreground/10">
+          <div className="flex w-full flex-col rounded-xl border border-foreground/15 overflow-hidden">
+            <div className="shrink-0 bg-foreground/8 px-5 py-3 border-b border-foreground/10">
               <h3 className="font-sans text-sm font-semibold text-foreground">Таблица №1</h3>
               <p className="font-mono text-xs text-foreground/45 mt-0.5">
                 Максимальное время непрерывного пребывания в ЗВТ (температура ≥ 27°C), минут
               </p>
             </div>
+            <div className="flex-1 overflow-y-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-foreground/10 bg-foreground/5">
@@ -676,10 +647,10 @@ export default function Zvt() {
                 })}
               </tbody>
             </table>
-            <div className="border-t border-foreground/10 px-5 py-3 bg-foreground/3">
-              <p className="font-mono text-[11px] text-foreground/35 leading-relaxed">
-                Источник: Приказ Ростехнадзора от 11.12.2020 №520, Приложение 6, Таблица №1.
-                При температуре выше 40°C работы без средств противотепловой защиты запрещены (п. 13).
+            </div>
+            <div className="shrink-0 border-t border-foreground/10 px-5 py-2 bg-foreground/3">
+              <p className="font-mono text-[10px] text-foreground/35">
+                Источник: Приказ №520, Прил. 6, Табл. №1. При t &gt; 40°C — запрещено (п. 13).
               </p>
             </div>
           </div>
@@ -687,8 +658,8 @@ export default function Zvt() {
 
         {/* ══════════════ ТАБЛИЦА 2 ══════════════ */}
         {activeTab === "table2" && (
-          <div className="rounded-xl border border-foreground/15 overflow-hidden">
-            <div className="bg-foreground/8 px-5 py-3 border-b border-foreground/10">
+          <div className="flex w-full flex-col rounded-xl border border-foreground/15 overflow-hidden">
+            <div className="shrink-0 bg-foreground/8 px-5 py-3 border-b border-foreground/10">
               <h3 className="font-sans text-sm font-semibold text-foreground">Таблица №2</h3>
               <p className="font-mono text-xs text-foreground/45 mt-0.5">
                 Максимальное время непрерывного пребывания в ЗВТ (температура ≤ 0°C), минут
@@ -729,14 +700,14 @@ export default function Zvt() {
                 })}
               </tbody>
             </table>
-            <div className="border-t border-foreground/10 px-5 py-3 bg-foreground/3">
-              <p className="font-mono text-[11px] text-foreground/35 leading-relaxed">
-                Источник: Приказ Ростехнадзора от 11.12.2020 №520, Приложение 6, Таблица №2.
-                Ведение работ при температуре ниже −20°C запрещено (п. 19).
+            <div className="shrink-0 border-t border-foreground/10 px-5 py-2 bg-foreground/3">
+              <p className="font-mono text-[10px] text-foreground/35">
+                Источник: Приказ №520, Прил. 6, Табл. №2. При t &lt; −20°C — запрещено (п. 19).
               </p>
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   )
