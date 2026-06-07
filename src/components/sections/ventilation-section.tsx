@@ -1,16 +1,17 @@
 import { useReveal } from "@/hooks/use-reveal"
 import { useState } from "react"
-import { AreaCalculator, ResistanceCalculator, LeakageCalculator } from "./ventilation-tabs-1"
+import { AreaCalculator, ResistanceCalculator, LeakageCalculator, GeometryResistanceCalculator } from "./ventilation-tabs-1"
 import { DepressionCalculator, FanReserveCalculator } from "./ventilation-tabs-2"
 
-type TabKey = "area" | "resistance" | "leakage" | "depression" | "fan-reserve"
+type TabKey = "area" | "resistance" | "leakage" | "depression" | "fan-reserve" | "geo-resistance"
 
 const TABS: { key: TabKey; label: string; full: string; short: string }[] = [
-  { key: "area",        label: "Площадь сечения",           full: "Площадь сечения канала вентиляции",                        short: "Сечение" },
-  { key: "resistance",  label: "Аэродин. сопротивление",    full: "Аэродинамическое сопротивление выработки",                 short: "Сопротивл." },
-  { key: "leakage",     label: "Утечки надшахтного здания", full: "Нормативные утечки воздуха через надшахтное здание",       short: "Утечки" },
-  { key: "depression",  label: "Депрессия шахты",           full: "Расчёт депрессии и количества воздуха в шахте",            short: "Депрессия" },
-  { key: "fan-reserve", label: "Резерв подачи ГВУ",         full: "Резерв подачи вентиляторов главного проветривания (ΔQ)",   short: "Резерв ГВУ" },
+  { key: "area",           label: "Площадь сечения",            full: "Площадь сечения канала вентиляции",                        short: "Сечение" },
+  { key: "resistance",     label: "Аэродин. сопротивление",     full: "Аэродинамическое сопротивление выработки",                 short: "Сопротивл." },
+  { key: "geo-resistance", label: "Сопр. по геометрии",         full: "Сопротивление выработки по геометрии и типу крепи",        short: "Сопр. геом." },
+  { key: "leakage",        label: "Утечки надшахтного здания",  full: "Нормативные утечки воздуха через надшахтное здание",       short: "Утечки" },
+  { key: "depression",     label: "Депрессия шахты",            full: "Расчёт депрессии и количества воздуха в шахте",            short: "Депрессия" },
+  { key: "fan-reserve",    label: "Резерв подачи ГВУ",          full: "Резерв подачи вентиляторов главного проветривания (ΔQ)",   short: "Резерв ГВУ" },
 ]
 
 export function VentilationSection({ sectionRef }: { sectionRef?: (el: HTMLElement | null) => void } = {}) {
@@ -68,11 +69,12 @@ export function VentilationSection({ sectionRef }: { sectionRef?: (el: HTMLEleme
             </h3>
           </div>
 
-          {activeTab === "area"        && <AreaCalculator />}
-          {activeTab === "resistance"  && <ResistanceCalculator />}
-          {activeTab === "leakage"     && <LeakageCalculator />}
-          {activeTab === "depression"  && <DepressionCalculator />}
-          {activeTab === "fan-reserve" && <FanReserveCalculator />}
+          {activeTab === "area"           && <AreaCalculator />}
+          {activeTab === "resistance"     && <ResistanceCalculator />}
+          {activeTab === "geo-resistance" && <GeometryResistanceCalculator />}
+          {activeTab === "leakage"        && <LeakageCalculator />}
+          {activeTab === "depression"     && <DepressionCalculator />}
+          {activeTab === "fan-reserve"    && <FanReserveCalculator />}
         </div>
       </div>
     </section>
