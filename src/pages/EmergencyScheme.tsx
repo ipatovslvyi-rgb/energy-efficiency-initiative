@@ -496,14 +496,14 @@ export default function EmergencyScheme() {
 
   const handleImageAreaClick = useCallback((e: React.MouseEvent) => {
     if (!placingLegendId) {
-      setSelectedMarkerId(null)
+      if (editingMarkers) setSelectedMarkerId(null)
       return
     }
     const pos = getRelativePos(e.clientX, e.clientY)
     const iid = Date.now().toString() + Math.random().toString(36).slice(2)
     setMarkers(m => [...m, { legendId: placingLegendId, x: pos.x, y: pos.y, scale: 1, rotation: 0, instanceId: iid }])
     setPlacingLegendId(null)
-  }, [placingLegendId, getRelativePos])
+  }, [placingLegendId, editingMarkers, getRelativePos])
 
   const handleMarkerMouseDown = useCallback((e: React.MouseEvent, instanceId: string) => {
     e.stopPropagation()
@@ -1098,9 +1098,9 @@ export default function EmergencyScheme() {
               </button>
             </div>
           ) : (
-            <div className="px-4 pb-10 md:px-6 lg:px-8">
+            <div className={activeTab === "preview" ? "flex flex-col h-full overflow-hidden" : "px-4 pb-10 md:px-6 lg:px-8"}>
               {/* Вкладки */}
-              <div className="flex gap-1 border-b border-foreground/10 mb-6 mt-3">
+              <div className={`flex gap-1 border-b border-foreground/10 shrink-0 ${activeTab === "preview" ? "px-4 md:px-6" : ""} mt-3`}>
                 {(["form", "preview"] as const).map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
                     className={`px-5 py-2.5 text-sm font-sans transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-primary text-foreground" : "border-transparent text-foreground/50 hover:text-foreground/80"}`}>
@@ -1211,24 +1211,41 @@ export default function EmergencyScheme() {
                       <div className="mb-3">
                         <p className="text-xs text-foreground/40 mb-2">Быстрое добавление из библиотеки:</p>
                         <div className="flex flex-wrap gap-2">
-                          {LEGEND_IMAGES.map(img => (
-                            <button
-                              key={img.url}
-                              title={img.description}
-                              onClick={() => {
-                                setLegend(l => [...l, {
-                                  id: Date.now().toString(),
-                                  symbol: img.symbol,
-                                  description: img.description,
-                                  imageUrl: img.url,
-                                }])
-                              }}
-                              className="flex flex-col items-center gap-1 p-1.5 rounded-lg border border-foreground/15 hover:border-primary/50 bg-foreground/5 hover:bg-primary/5 transition-colors"
-                            >
-                              <img src={img.url} alt={img.description} className="w-8 h-8 object-contain" style={{ imageRendering: "crisp-edges" }} />
-                              <span className="text-[9px] text-foreground/50 max-w-[56px] text-center leading-tight">{img.description}</span>
-                            </button>
-                          ))}
+                          {LEGEND_IMAGES.map(img => {
+                            const alreadyAdded = legend.some(l => l.description === img.description)
+                            return (
+                              <button
+                                key={img.url}
+                                title={alreadyAdded ? `Убрать: ${img.description}` : img.description}
+                                onClick={() => {
+                                  if (alreadyAdded) {
+                                    const existing = legend.find(l => l.description === img.description)
+                                    if (existing) removeLegend(existing.id)
+                                  } else {
+                                    setLegend(l => [...l, {
+                                      id: Date.now().toString(),
+                                      symbol: img.symbol,
+                                      description: img.description,
+                                      imageUrl: img.url,
+                                    }])
+                                  }
+                                }}
+                                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border transition-colors ${
+                                  alreadyAdded
+                                    ? "border-primary/60 bg-primary/15 hover:bg-red-500/15 hover:border-red-400/50"
+                                    : "border-foreground/15 hover:border-primary/50 bg-foreground/5 hover:bg-primary/5"
+                                }`}
+                              >
+                                <div className="relative">
+                                  <img src={img.url} alt={img.description} className="w-8 h-8 object-contain" style={{ imageRendering: "crisp-edges" }} />
+                                  {alreadyAdded && (
+                                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-primary rounded-full flex items-center justify-center text-background" style={{ fontSize: 8, fontWeight: "bold" }}>✓</span>
+                                  )}
+                                </div>
+                                <span className={`text-[9px] max-w-[56px] text-center leading-tight ${alreadyAdded ? "text-primary/80" : "text-foreground/50"}`}>{img.description}</span>
+                              </button>
+                            )
+                          })}
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
@@ -1256,18 +1273,20 @@ export default function EmergencyScheme() {
               {/* ПРЕДПРОСМОТР */}
               {activeTab === "preview" && (
                 <>
-                <div className="flex items-center justify-between mb-3">
+                {/* Тулбар предпросмотра */}
+                <div className="flex items-center justify-between px-4 md:px-6 py-2 shrink-0 border-b border-foreground/10 bg-background/50">
                   <span className="text-xs text-foreground/40 font-mono uppercase tracking-wider">Предпросмотр</span>
                   <button
-                    onClick={() => { setEditingMarkers(e => !e); setPlacingLegendId(null) }}
+                    onClick={() => { setEditingMarkers(e => !e); setPlacingLegendId(null); setSelectedMarkerId(null) }}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${editingMarkers ? "border-blue-400/60 bg-blue-500/15 text-blue-400" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}
                   >
                     <Icon name="MapPin" size={13} />
                     {editingMarkers ? "Готово" : "Разместить маркеры"}
                   </button>
                 </div>
-                <div className="overflow-x-auto">
-                <div ref={previewRef} className="bg-white text-black shadow-2xl" style={{ fontFamily: "Times New Roman, serif", fontSize: 12, padding: "16px 10px 16px 24px", minWidth: 900, width: 900 }}>
+                {/* Скроллируемая область документа */}
+                <div className="flex-1 overflow-auto bg-foreground/5 p-4 md:p-6">
+                <div ref={previewRef} className="bg-white text-black shadow-2xl mx-auto" style={{ fontFamily: "Times New Roman, serif", fontSize: 12, padding: "16px 10px 16px 24px", minWidth: 860, width: "100%", maxWidth: 1200 }}>
 
                   {/* Шапка (снимается через html2canvas для PDF) */}
                   <div ref={headerRef} style={{ background: "white" }}>
@@ -1318,19 +1337,19 @@ export default function EmergencyScheme() {
                     {/* Картинка схемы */}
                     <div
                       ref={imageContainerRef}
-                      className={`relative bg-gray-50 select-none overflow-hidden ${editingMarkers && placingLegendId ? "cursor-crosshair" : editingMarkers && draggingMarker ? "cursor-grabbing" : ""}`}
+                      className={`relative bg-gray-50 select-none overflow-hidden ${placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : editingMarkers ? "cursor-default" : ""}`}
                       style={{ flex: 1, minHeight: 240, border: "1px solid #9ca3af" }}
-                      onClick={editingMarkers ? handleImageAreaClick : undefined}
-                      onMouseMove={editingMarkers ? handleMouseMove : undefined}
-                      onMouseUp={editingMarkers ? handleMouseUp : undefined}
-                      onMouseLeave={editingMarkers ? handleMouseUp : undefined}
+                      onClick={handleImageAreaClick}
+                      onMouseMove={handleMouseMove}
+                      onMouseUp={handleMouseUp}
+                      onMouseLeave={handleMouseUp}
                     >
                       {imageUrl ? (
                         <img src={imageUrl} alt="Схема" className="block pointer-events-none" style={{ width: "100%", height: "auto" }} />
                       ) : (
                         <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height: 240 }}>Схема участка не загружена</div>
                       )}
-                      {editingMarkers && placingLegendId && (
+                      {placingLegendId && (
                         <div className="absolute inset-0 border-2 border-dashed border-blue-400 pointer-events-none flex items-center justify-center">
                           <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded shadow">Кликните для размещения</span>
                         </div>
@@ -1345,15 +1364,15 @@ export default function EmergencyScheme() {
                         return (
                           <div
                             key={iid}
-                            className={`absolute group ${editingMarkers ? "cursor-grab active:cursor-grabbing" : ""}`}
+                            className="absolute group cursor-grab active:cursor-grabbing"
                             style={{
                               left: `${mk.x}%`, top: `${mk.y}%`,
                               transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`,
                               zIndex: isSelected ? 30 : 10,
                               transformOrigin: "center",
                             }}
-                            onMouseDown={editingMarkers ? e => handleMarkerMouseDown(e, iid) : undefined}
-                            onClick={editingMarkers ? e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) } : undefined}
+                            onMouseDown={e => handleMarkerMouseDown(e, iid)}
+                            onClick={e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) }}
                           >
                             {/* Иконка без фона */}
                             {item.imageUrl
@@ -1366,7 +1385,7 @@ export default function EmergencyScheme() {
                               : <span className="font-bold text-gray-900 drop-shadow-sm" style={{ fontSize: 13, lineHeight: 1 }}>{item.symbol}</span>
                             }
                             {/* Обводка при выборе */}
-                            {editingMarkers && isSelected && (
+                            {isSelected && (
                               <div className="absolute inset-0 rounded border-2 border-blue-500 pointer-events-none" style={{ margin: -3, width: "calc(100% + 6px)", height: "calc(100% + 6px)" }} />
                             )}
                           </div>
@@ -1374,7 +1393,7 @@ export default function EmergencyScheme() {
                       })}
 
                       {/* Панель управления выбранным маркером */}
-                      {editingMarkers && selectedMarkerId && (() => {
+                      {selectedMarkerId && (() => {
                         const mk = markers.find(m => (m.instanceId ?? m.legendId) === selectedMarkerId)
                         if (!mk) return null
                         const sc = mk.scale ?? 1
@@ -1460,20 +1479,20 @@ export default function EmergencyScheme() {
                                 {placedCount > 0 && (
                                   <span style={{ fontSize: 8, color: "#6b7280", marginRight: 1 }}>×{placedCount}</span>
                                 )}
-                                {editingMarkers && (
-                                  <button
-                                    title="Добавить на схему"
-                                    onClick={() => setPlacingLegendId(isPlacing ? null : item.id)}
-                                    className={`shrink-0 rounded px-0.5 text-xs transition-colors ${isPlacing ? "text-blue-600 bg-blue-100" : "text-gray-400 hover:text-gray-700"}`}
-                                  >{isPlacing ? "✕" : "📍"}</button>
-                                )}
+                                <button
+                                  title={isPlacing ? "Отмена" : "Разместить на схеме"}
+                                  onClick={() => {
+                                    if (!editingMarkers) setEditingMarkers(true)
+                                    setPlacingLegendId(isPlacing ? null : item.id)
+                                    setSelectedMarkerId(null)
+                                  }}
+                                  className={`shrink-0 rounded px-0.5 text-xs transition-colors ${isPlacing ? "text-blue-600 bg-blue-100" : "text-gray-400 hover:text-gray-700"}`}
+                                >{isPlacing ? "✕" : "📍"}</button>
                               </div>
                             )
                           })}
                         </div>
-                        {editingMarkers && (
-                          <p className="text-gray-400 mt-1" style={{ fontSize: 8 }}>Клик на маркере → панель управления</p>
-                        )}
+                        <p className="text-gray-400 mt-1" style={{ fontSize: 8 }}>📍 — разместить · клик → настройки</p>
                       </div>
                     )}
                   </div>
