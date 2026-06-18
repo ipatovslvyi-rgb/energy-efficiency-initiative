@@ -60,18 +60,201 @@ interface SavedScheme {
   markers?: MarkerPosition[]
 }
 
-const LEGEND_IMAGES: { url: string; description: string; symbol: string }[] = [
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/9db6e135-1e27-4383-8295-3630be8e7681.png", description: "Пожар", symbol: "🔥" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/c672fa41-8b71-441b-8a32-bd7fbb233da3.png", description: "Взрыв", symbol: "💥" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/7e41e0cd-276a-4e08-a7d3-ed00f9b927e8.png", description: "Газовыделение", symbol: "☁" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/830959e7-402a-42a0-8b56-df79e9290b9a.png", description: "Самоходное оборудование", symbol: "🚗" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/df8bef2b-8856-4f67-879f-9b97ccd8b935.png", description: "Местонахождение пострадавшего (смертельно)", symbol: "✕" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/c3ca59d8-d4d4-48be-9a62-58e35f43e826.png", description: "Местонахождение пострадавшего (травм.)", symbol: "○" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/9cd3bc80-f014-46c7-8aea-a8553078d2ce.png", description: "Отделение в движении", symbol: "→" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/ef86e8c3-f05c-460d-bfbb-a79a0f7e6008.png", description: "Подземная база", symbol: "П.Б" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/0ab4dc2e-4feb-4bc2-b5ff-b292b4a91a3e.png", description: "Надшахтное здание", symbol: "🏭" },
-  { url: "https://cdn.poehali.dev/projects/9e0b7c43-fecb-4248-943e-e190c3206477/bucket/d0912bc2-187e-40e7-a401-af003e339654.png", description: "Стационарный пункт ВГК", symbol: "ВГК" },
+// SVG-иконки условных обозначений согласно ГОСТ / Приказу Ростехнадзора №520
+// Каждая иконка кодируется в data:image/svg+xml;base64 для надёжного рендера без внешних запросов
+function svgToDataUrl(svg: string): string {
+  return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)))
+}
+
+const UO_SVGS: { id: string; description: string; symbol: string; svg: string }[] = [
+  {
+    id: "otd_na_meste",
+    description: "Отделение на месте работ",
+    symbol: "5чел",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <rect x="4" y="12" width="40" height="24" rx="2" fill="none" stroke="#000" stroke-width="2"/>
+      <text x="24" y="28" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle" fill="#000">5 чел</text>
+    </svg>`,
+  },
+  {
+    id: "otd_v_dvizhenii",
+    description: "Отделение в движении",
+    symbol: "5чел→",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="48" viewBox="0 0 56 48">
+      <rect x="4" y="12" width="40" height="24" rx="2" fill="none" stroke="#000" stroke-width="2"/>
+      <text x="24" y="28" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle" fill="#000">5 чел</text>
+      <line x1="44" y1="24" x2="54" y2="24" stroke="#000" stroke-width="2"/>
+      <polygon points="50,20 54,24 50,28" fill="#000"/>
+    </svg>`,
+  },
+  {
+    id: "pb",
+    description: "Подземная горноспасательная база (ПБ)",
+    symbol: "ПБ",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <rect x="4" y="10" width="40" height="28" rx="2" fill="none" stroke="#000" stroke-width="2.5"/>
+      <text x="24" y="30" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#000">ПБ</text>
+    </svg>`,
+  },
+  {
+    id: "nb",
+    description: "Наземная база (НБ)",
+    symbol: "НБ",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <rect x="4" y="10" width="40" height="28" rx="2" fill="none" stroke="#000" stroke-width="2.5"/>
+      <text x="24" y="30" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#000">НБ</text>
+    </svg>`,
+  },
+  {
+    id: "post_bezop",
+    description: "Пост безопасности",
+    symbol: "⚑○",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <circle cx="24" cy="30" r="10" fill="none" stroke="#000" stroke-width="2"/>
+      <line x1="24" y1="4" x2="24" y2="20" stroke="#000" stroke-width="2"/>
+      <polygon points="24,4 36,10 24,16" fill="#000"/>
+    </svg>`,
+  },
+  {
+    id: "otbor_prob",
+    description: "Место отбора проб",
+    symbol: "△4",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <polygon points="24,6 44,42 4,42" fill="none" stroke="#000" stroke-width="2"/>
+      <text x="24" y="38" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#000">4</text>
+    </svg>`,
+  },
+  {
+    id: "pozhar",
+    description: "Очаг пожара",
+    symbol: "☀",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="9" fill="none" stroke="#cc0000" stroke-width="2"/>
+      <line x1="24" y1="4" x2="24" y2="12" stroke="#cc0000" stroke-width="2"/>
+      <line x1="24" y1="36" x2="24" y2="44" stroke="#cc0000" stroke-width="2"/>
+      <line x1="4" y1="24" x2="12" y2="24" stroke="#cc0000" stroke-width="2"/>
+      <line x1="36" y1="24" x2="44" y2="24" stroke="#cc0000" stroke-width="2"/>
+      <line x1="9" y1="9" x2="15" y2="15" stroke="#cc0000" stroke-width="2"/>
+      <line x1="33" y1="33" x2="39" y2="39" stroke="#cc0000" stroke-width="2"/>
+      <line x1="39" y1="9" x2="33" y2="15" stroke="#cc0000" stroke-width="2"/>
+      <line x1="9" y1="39" x2="15" y2="33" stroke="#cc0000" stroke-width="2"/>
+    </svg>`,
+  },
+  {
+    id: "rasprostranenie_pozh",
+    description: "Распространение пожара",
+    symbol: "☀***",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48" viewBox="0 0 64 48">
+      <circle cx="14" cy="24" r="8" fill="none" stroke="#cc0000" stroke-width="2"/>
+      <line x1="14" y1="6" x2="14" y2="13" stroke="#cc0000" stroke-width="1.5"/>
+      <line x1="14" y1="35" x2="14" y2="42" stroke="#cc0000" stroke-width="1.5"/>
+      <line x1="2" y1="24" x2="7" y2="24" stroke="#cc0000" stroke-width="1.5"/>
+      <line x1="21" y1="24" x2="26" y2="24" stroke="#cc0000" stroke-width="1.5"/>
+      <line x1="5" y1="10" x2="10" y2="15" stroke="#cc0000" stroke-width="1.5"/>
+      <line x1="18" y1="18" x2="23" y2="13" stroke="#cc0000" stroke-width="1.5"/>
+      <circle cx="36" cy="24" r="3" fill="#cc0000"/>
+      <circle cx="46" cy="24" r="3" fill="#cc0000"/>
+      <circle cx="56" cy="24" r="3" fill="#cc0000"/>
+    </svg>`,
+  },
+  {
+    id: "vzryv_mesto",
+    description: "Место взрыва",
+    symbol: "⊕↕",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="10" fill="none" stroke="#000" stroke-width="2"/>
+      <line x1="24" y1="4" x2="24" y2="14" stroke="#000" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="24" y1="44" x2="24" y2="34" stroke="#000" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="4" y1="24" x2="14" y2="24" stroke="#000" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="44" y1="24" x2="34" y2="24" stroke="#000" stroke-width="2" marker-end="url(#arr)"/>
+      <defs>
+        <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L6,3 z" fill="#000"/>
+        </marker>
+      </defs>
+    </svg>`,
+  },
+  {
+    id: "narus_krep",
+    description: "Горная выработка с нарушенной крепью",
+    symbol: "∧∧∧",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
+      <polyline points="2,28 12,6 22,28 32,6 42,28 52,6 62,28" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="miter"/>
+    </svg>`,
+  },
+  {
+    id: "zona_obrus",
+    description: "Зона обрушения горных пород",
+    symbol: "⬭░",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40">
+      <ellipse cx="32" cy="22" rx="26" ry="12" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="4,3"/>
+      <line x1="8" y1="32" x2="56" y2="32" stroke="#000" stroke-width="2"/>
+      <line x1="4" y1="36" x2="60" y2="36" stroke="#000" stroke-width="1" stroke-dasharray="2,2"/>
+      <text x="32" y="26" font-family="Arial" font-size="8" text-anchor="middle" fill="#555">· · · · ·</text>
+    </svg>`,
+  },
+  {
+    id: "proryv_vody",
+    description: "Прорыв воды, рассола",
+    symbol: "~↗",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <path d="M8,36 C10,28 14,24 18,20 C22,16 24,10 28,8" fill="none" stroke="#0055cc" stroke-width="2.5"/>
+      <path d="M16,40 C18,32 22,28 26,24 C30,20 32,14 36,10" fill="none" stroke="#0055cc" stroke-width="2.5"/>
+      <polygon points="28,8 36,6 32,14" fill="#0055cc"/>
+      <polygon points="36,10 44,8 40,16" fill="#0055cc"/>
+    </svg>`,
+  },
+  {
+    id: "proryv_ilovoj",
+    description: "Прорыв заиловочной массы и плывунов",
+    symbol: "~↘",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <path d="M8,10 C12,16 14,22 18,26 C22,30 24,36 28,40" fill="none" stroke="#8B4513" stroke-width="2.5"/>
+      <path d="M18,8 C22,14 24,20 28,24 C32,28 34,34 38,38" fill="none" stroke="#8B4513" stroke-width="2.5"/>
+      <polygon points="28,40 36,42 30,34" fill="#8B4513"/>
+      <polygon points="38,38 46,40 40,32" fill="#8B4513"/>
+    </svg>`,
+  },
+  {
+    id: "vybros_gu",
+    description: "Место выброса (В) или горного удара (У)",
+    symbol: "В/У",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <circle cx="24" cy="18" r="10" fill="none" stroke="#000" stroke-width="2"/>
+      <text x="24" y="23" font-family="Arial" font-size="11" font-weight="bold" text-anchor="middle" fill="#000">В</text>
+      <line x1="14" y1="28" x2="34" y2="28" stroke="#000" stroke-width="2"/>
+      <line x1="24" y1="28" x2="24" y2="44" stroke="#000" stroke-width="2"/>
+      <polygon points="20,40 24,44 28,40" fill="#000"/>
+    </svg>`,
+  },
+  {
+    id: "postr_s_zhizn",
+    description: "Место обнаружения пострадавшего с признаками жизни",
+    symbol: "○",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="14" fill="none" stroke="#000" stroke-width="2.5"/>
+    </svg>`,
+  },
+  {
+    id: "postr_bez_zhizni",
+    description: "Место обнаружения пострадавшего без признаков жизни",
+    symbol: "⊗",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="14" fill="none" stroke="#000" stroke-width="2.5"/>
+      <line x1="14" y1="14" x2="34" y2="34" stroke="#000" stroke-width="2"/>
+      <line x1="34" y1="14" x2="14" y2="34" stroke="#000" stroke-width="2"/>
+    </svg>`,
+  },
 ]
+
+// Конвертируем SVG в data URL при инициализации (один раз)
+const LEGEND_IMAGES: { url: string; description: string; symbol: string; svgDataUrl: string }[] =
+  UO_SVGS.map(item => ({
+    url: svgToDataUrl(item.svg),
+    description: item.description,
+    symbol: item.symbol,
+    svgDataUrl: svgToDataUrl(item.svg),
+  }))
 
 const DEFAULT_LEGEND: LegendItem[] = []
 
@@ -991,7 +1174,7 @@ export default function EmergencyScheme() {
                           <Icon name="Plus" size={13} />Добавить
                         </button>
                       </div>
-                      {/* Библиотека иконок */}
+                      {/* Библиотека иконок УО по ГОСТ */}
                       <div className="mb-3">
                         <p className="text-xs text-foreground/40 mb-2">Быстрое добавление из библиотеки:</p>
                         <div className="flex flex-wrap gap-2">
@@ -999,19 +1182,18 @@ export default function EmergencyScheme() {
                             <button
                               key={img.url}
                               title={img.description}
-                              onClick={async () => {
-                                let imageUrl = img.url
-                                try {
-                                  const res = await fetch(`https://functions.poehali.dev/6dca2b21-195c-420b-963b-81391c7ce265?url=${encodeURIComponent(img.url)}`)
-                                  const json = await res.json()
-                                  if (json.dataUrl) imageUrl = json.dataUrl
-                                } catch { /* используем url как есть */ }
-                                setLegend(l => [...l, { id: Date.now().toString(), symbol: img.symbol, description: img.description, imageUrl }])
+                              onClick={() => {
+                                setLegend(l => [...l, {
+                                  id: Date.now().toString(),
+                                  symbol: img.symbol,
+                                  description: img.description,
+                                  imageUrl: img.url,
+                                }])
                               }}
                               className="flex flex-col items-center gap-1 p-1.5 rounded-lg border border-foreground/15 hover:border-primary/50 bg-foreground/5 hover:bg-primary/5 transition-colors"
                             >
-                              <img src={img.url} alt={img.description} className="w-8 h-8 object-contain" />
-                              <span className="text-[9px] text-foreground/50 max-w-[52px] text-center leading-tight">{img.description}</span>
+                              <img src={img.url} alt={img.description} className="w-8 h-8 object-contain" style={{ imageRendering: "crisp-edges" }} />
+                              <span className="text-[9px] text-foreground/50 max-w-[56px] text-center leading-tight">{img.description}</span>
                             </button>
                           ))}
                         </div>
