@@ -21,6 +21,9 @@ interface MarkerPosition {
   legendId: string
   x: number
   y: number
+  scale?: number      // 0.5 – 3.0, по умолч. 1.0
+  rotation?: number   // градусы 0-359
+  instanceId?: string // уникальный id копии (несколько одинаковых УО)
 }
 
 interface FormData {
@@ -343,9 +346,10 @@ export default function EmergencyScheme() {
   const [pendingPngExport, setPendingPngExport] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [markers, setMarkers] = useState<MarkerPosition[]>(() => loadSchemes()[0]?.markers ?? [])
-  const [draggingMarker, setDraggingMarker] = useState<{ legendId: string; offsetX: number; offsetY: number } | null>(null)
+  const [draggingMarker, setDraggingMarker] = useState<{ instanceId: string; offsetX: number; offsetY: number } | null>(null)
   const [placingLegendId, setPlacingLegendId] = useState<string | null>(null)
   const [editingMarkers, setEditingMarkers] = useState(false)
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null)
   const imageContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
@@ -491,43 +495,62 @@ export default function EmergencyScheme() {
   }, [])
 
   const handleImageAreaClick = useCallback((e: React.MouseEvent) => {
-    if (!placingLegendId) return
+    if (!placingLegendId) {
+      setSelectedMarkerId(null)
+      return
+    }
     const pos = getRelativePos(e.clientX, e.clientY)
-    setMarkers(m => {
-      const without = m.filter(mk => mk.legendId !== placingLegendId)
-      return [...without, { legendId: placingLegendId, x: pos.x, y: pos.y }]
-    })
+    const iid = Date.now().toString() + Math.random().toString(36).slice(2)
+    setMarkers(m => [...m, { legendId: placingLegendId, x: pos.x, y: pos.y, scale: 1, rotation: 0, instanceId: iid }])
     setPlacingLegendId(null)
   }, [placingLegendId, getRelativePos])
 
-  const handleMarkerMouseDown = useCallback((e: React.MouseEvent, legendId: string) => {
+  const handleMarkerMouseDown = useCallback((e: React.MouseEvent, instanceId: string) => {
     e.stopPropagation()
+    setSelectedMarkerId(instanceId)
     const el = imageContainerRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    const marker = markers.find(m => m.legendId === legendId)
+    const marker = markers.find(m => m.instanceId === instanceId)
     if (!marker) return
     const markerPxX = (marker.x / 100) * rect.width + rect.left
     const markerPxY = (marker.y / 100) * rect.height + rect.top
-    setDraggingMarker({ legendId, offsetX: e.clientX - markerPxX, offsetY: e.clientY - markerPxY })
+    setDraggingMarker({ instanceId, offsetX: e.clientX - markerPxX, offsetY: e.clientY - markerPxY })
   }, [markers])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!draggingMarker) return
     const pos = getRelativePos(e.clientX - draggingMarker.offsetX, e.clientY - draggingMarker.offsetY)
-    setMarkers(m => m.map(mk => mk.legendId === draggingMarker.legendId ? { ...mk, x: pos.x, y: pos.y } : mk))
+    setMarkers(m => m.map(mk => mk.instanceId === draggingMarker.instanceId ? { ...mk, x: pos.x, y: pos.y } : mk))
   }, [draggingMarker, getRelativePos])
 
   const handleMouseUp = useCallback(() => {
     setDraggingMarker(null)
   }, [])
 
-  const removeMarker = (legendId: string) => setMarkers(m => m.filter(mk => mk.legendId !== legendId))
+  const removeMarker = (instanceId: string) => {
+    setMarkers(m => m.filter(mk => mk.instanceId !== instanceId))
+    setSelectedMarkerId(null)
+  }
+
+  const updateMarker = (instanceId: string, patch: Partial<MarkerPosition>) =>
+    setMarkers(m => m.map(mk => mk.instanceId === instanceId ? { ...mk, ...patch } : mk))
+
+  const copyMarker = (instanceId: string) => {
+    const mk = markers.find(m => m.instanceId === instanceId)
+    if (!mk) return
+    const newIid = Date.now().toString() + Math.random().toString(36).slice(2)
+    setMarkers(m => [...m, { ...mk, instanceId: newIid, x: Math.min(95, mk.x + 4), y: Math.min(95, mk.y + 4) }])
+    setSelectedMarkerId(newIid)
+  }
 
   const addLegendItem = () => setLegend(l => [...l, { id: Date.now().toString(), symbol: "", description: "" }])
   const updateLegend = (id: string, field: "symbol" | "description" | "imageUrl", value: string) =>
     setLegend(l => l.map(item => item.id === id ? { ...item, [field]: value } : item))
-  const removeLegend = (id: string) => setLegend(l => l.filter(item => item.id !== id))
+  const removeLegend = (id: string) => {
+    setLegend(l => l.filter(item => item.id !== id))
+    setMarkers(m => m.filter(mk => mk.legendId !== id))
+  }
 
   const exportToPng = async () => {
     const el = previewRef.current
@@ -670,38 +693,48 @@ export default function EmergencyScheme() {
     return new Promise(resolve => {
       if (!imageUrl || markers.length === 0) { resolve(null); return }
       const img = new Image()
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement("canvas")
         canvas.width = img.naturalWidth
         canvas.height = img.naturalHeight
         const ctx = canvas.getContext("2d")
         if (!ctx) { resolve(null); return }
         ctx.drawImage(img, 0, 0)
-        markers.forEach(mk => {
+
+        const baseSize = Math.max(24, canvas.width / 30)
+
+        for (const mk of markers) {
           const item = legend.find(l => l.id === mk.legendId)
-          if (!item) return
+          if (!item) continue
           const px = (mk.x / 100) * canvas.width
           const py = (mk.y / 100) * canvas.height
-          const text = item.symbol
-          ctx.font = `bold ${Math.max(14, canvas.width / 40)}px Arial`
-          const metrics = ctx.measureText(text)
-          const pad = 6
-          const bw = metrics.width + pad * 2
-          const bh = Math.max(14, canvas.width / 40) + pad * 2
-          const bx = px - bw / 2
-          const by = py - bh / 2
-          ctx.fillStyle = "rgba(255,255,255,0.92)"
-          ctx.strokeStyle = "#222"
-          ctx.lineWidth = Math.max(1, canvas.width / 400)
-          ctx.beginPath()
-          ctx.roundRect(bx, by, bw, bh, 4)
-          ctx.fill()
-          ctx.stroke()
-          ctx.fillStyle = "#111"
-          ctx.textBaseline = "middle"
-          ctx.textAlign = "center"
-          ctx.fillText(text, px, py)
-        })
+          const sc = mk.scale ?? 1
+          const rot = ((mk.rotation ?? 0) * Math.PI) / 180
+          const sz = baseSize * sc
+
+          ctx.save()
+          ctx.translate(px, py)
+          ctx.rotate(rot)
+
+          if (item.imageUrl) {
+            const iconImg = new Image()
+            await new Promise<void>(res => {
+              iconImg.onload = () => res()
+              iconImg.onerror = () => res()
+              iconImg.src = item.imageUrl!
+            })
+            ctx.drawImage(iconImg, -sz / 2, -sz / 2, sz, sz)
+          } else {
+            const text = item.symbol
+            ctx.font = `bold ${Math.round(sz * 0.6)}px Arial`
+            ctx.textBaseline = "middle"
+            ctx.textAlign = "center"
+            ctx.fillStyle = "#111"
+            ctx.fillText(text, 0, 0)
+          }
+          ctx.restore()
+        }
+
         canvas.toBlob(blob => {
           if (!blob) { resolve(null); return }
           blob.arrayBuffer().then(resolve)
@@ -1305,21 +1338,106 @@ export default function EmergencyScheme() {
                       {markers.map(mk => {
                         const item = legend.find(l => l.id === mk.legendId)
                         if (!item) return null
+                        const iid = mk.instanceId ?? mk.legendId
+                        const sc = mk.scale ?? 1
+                        const rot = mk.rotation ?? 0
+                        const isSelected = selectedMarkerId === iid
                         return (
                           <div
-                            key={mk.legendId}
-                            className={`absolute ${editingMarkers ? "cursor-grab active:cursor-grabbing" : ""}`}
-                            style={{ left: `${mk.x}%`, top: `${mk.y}%`, transform: "translate(-50%,-50%)", zIndex: 10 }}
-                            onMouseDown={editingMarkers ? e => handleMarkerMouseDown(e, mk.legendId) : undefined}
-                            onDoubleClick={editingMarkers ? e => { e.stopPropagation(); removeMarker(mk.legendId) } : undefined}
+                            key={iid}
+                            className={`absolute group ${editingMarkers ? "cursor-grab active:cursor-grabbing" : ""}`}
+                            style={{
+                              left: `${mk.x}%`, top: `${mk.y}%`,
+                              transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`,
+                              zIndex: isSelected ? 30 : 10,
+                              transformOrigin: "center",
+                            }}
+                            onMouseDown={editingMarkers ? e => handleMarkerMouseDown(e, iid) : undefined}
+                            onClick={editingMarkers ? e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) } : undefined}
                           >
+                            {/* Иконка без фона */}
                             {item.imageUrl
-                              ? <img src={item.imageUrl} alt={item.symbol} className="shadow-md rounded-full" style={{ width: 28, height: 28, objectFit: "contain", background: "white" }} />
-                              : <span className="bg-white border-2 border-gray-800 rounded px-1 font-bold shadow-md" style={{ fontSize: 12, lineHeight: 1.3 }}>{item.symbol}</span>
+                              ? <img
+                                  src={item.imageUrl}
+                                  alt={item.symbol}
+                                  style={{ width: 32, height: 32, objectFit: "contain", display: "block" }}
+                                  draggable={false}
+                                />
+                              : <span className="font-bold text-gray-900 drop-shadow-sm" style={{ fontSize: 13, lineHeight: 1 }}>{item.symbol}</span>
                             }
+                            {/* Обводка при выборе */}
+                            {editingMarkers && isSelected && (
+                              <div className="absolute inset-0 rounded border-2 border-blue-500 pointer-events-none" style={{ margin: -3, width: "calc(100% + 6px)", height: "calc(100% + 6px)" }} />
+                            )}
                           </div>
                         )
                       })}
+
+                      {/* Панель управления выбранным маркером */}
+                      {editingMarkers && selectedMarkerId && (() => {
+                        const mk = markers.find(m => (m.instanceId ?? m.legendId) === selectedMarkerId)
+                        if (!mk) return null
+                        const sc = mk.scale ?? 1
+                        const rot = mk.rotation ?? 0
+                        return (
+                          <div
+                            className="absolute z-40 bg-gray-900/95 border border-white/20 rounded-xl shadow-2xl flex flex-col gap-2 p-2.5"
+                            style={{ left: `${Math.min(mk.x, 75)}%`, top: `${Math.max(mk.y - 18, 2)}%`, minWidth: 180 }}
+                            onMouseDown={e => e.stopPropagation()}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {/* Масштаб */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-white/50 text-[10px] w-14 shrink-0">Размер</span>
+                              <input
+                                type="range" min="0.3" max="3" step="0.1"
+                                value={sc}
+                                onChange={e => updateMarker(selectedMarkerId, { scale: parseFloat(e.target.value) })}
+                                className="flex-1 accent-blue-400 h-1"
+                              />
+                              <span className="text-white text-[10px] w-7 text-right">{sc.toFixed(1)}×</span>
+                            </div>
+                            {/* Вращение */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-white/50 text-[10px] w-14 shrink-0">Поворот</span>
+                              <input
+                                type="range" min="0" max="359" step="5"
+                                value={rot}
+                                onChange={e => updateMarker(selectedMarkerId, { rotation: parseInt(e.target.value) })}
+                                className="flex-1 accent-blue-400 h-1"
+                              />
+                              <span className="text-white text-[10px] w-7 text-right">{rot}°</span>
+                            </div>
+                            {/* Быстрые углы */}
+                            <div className="flex gap-1">
+                              {[0, 90, 180, 270].map(a => (
+                                <button key={a} onClick={() => updateMarker(selectedMarkerId, { rotation: a })}
+                                  className={`flex-1 text-[9px] rounded py-0.5 transition-colors ${rot === a ? "bg-blue-500 text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>{a}°</button>
+                              ))}
+                            </div>
+                            {/* Быстрые размеры */}
+                            <div className="flex gap-1">
+                              {[0.5, 1, 1.5, 2].map(s => (
+                                <button key={s} onClick={() => updateMarker(selectedMarkerId, { scale: s })}
+                                  className={`flex-1 text-[9px] rounded py-0.5 transition-colors ${Math.abs(sc - s) < 0.05 ? "bg-blue-500 text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>{s}×</button>
+                              ))}
+                            </div>
+                            {/* Действия */}
+                            <div className="flex gap-1 border-t border-white/10 pt-2 mt-0.5">
+                              <button onClick={() => copyMarker(selectedMarkerId)}
+                                className="flex-1 flex items-center justify-center gap-1 text-[10px] text-white/70 hover:text-white bg-white/8 hover:bg-white/15 rounded-lg py-1 transition-colors">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                Копировать
+                              </button>
+                              <button onClick={() => removeMarker(selectedMarkerId)}
+                                className="flex-1 flex items-center justify-center gap-1 text-[10px] text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-lg py-1 transition-colors">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                                Удалить
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
 
                     {/* Условные обозначения — справа от картинки */}
@@ -1328,30 +1446,33 @@ export default function EmergencyScheme() {
                         <p className="font-bold underline mb-1" style={{ fontSize: 10 }}>Условные обозначения:</p>
                         <div className="flex flex-col" style={{ gap: 3 }}>
                           {legend.map(item => {
-                            const placed = markers.some(m => m.legendId === item.id)
+                            const placedCount = markers.filter(m => m.legendId === item.id).length
                             const isPlacing = placingLegendId === item.id
                             return (
                               <div key={item.id} className="flex items-center" style={{ gap: 4, fontSize: 9 }}>
                                 <span className="shrink-0" style={{ width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                                   {item.imageUrl
                                     ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 14, height: 14, objectFit: "contain" }} />
-                                    : <span style={{ border: "1px solid #555", borderRadius: 2, padding: "0 2px", fontWeight: "bold", fontSize: 8 }}>{item.symbol}</span>
+                                    : <span style={{ fontWeight: "bold", fontSize: 8 }}>{item.symbol}</span>
                                   }
                                 </span>
                                 <span style={{ flex: 1, lineHeight: 1.2 }}>{item.description}</span>
+                                {placedCount > 0 && (
+                                  <span style={{ fontSize: 8, color: "#6b7280", marginRight: 1 }}>×{placedCount}</span>
+                                )}
                                 {editingMarkers && (
                                   <button
-                                    title={placed ? "Убрать" : "Разместить"}
-                                    onClick={() => { if (placed) removeMarker(item.id); else setPlacingLegendId(isPlacing ? null : item.id) }}
-                                    className={`shrink-0 rounded px-0.5 text-xs transition-colors ${isPlacing ? "text-blue-600 bg-blue-100" : placed ? "text-red-400" : "text-gray-400 hover:text-gray-700"}`}
-                                  >{placed ? "✕" : "📍"}</button>
+                                    title="Добавить на схему"
+                                    onClick={() => setPlacingLegendId(isPlacing ? null : item.id)}
+                                    className={`shrink-0 rounded px-0.5 text-xs transition-colors ${isPlacing ? "text-blue-600 bg-blue-100" : "text-gray-400 hover:text-gray-700"}`}
+                                  >{isPlacing ? "✕" : "📍"}</button>
                                 )}
                               </div>
                             )
                           })}
                         </div>
-                        {editingMarkers && markers.length > 0 && (
-                          <p className="text-gray-400 mt-1" style={{ fontSize: 8 }}>Двойной клик — убрать маркер</p>
+                        {editingMarkers && (
+                          <p className="text-gray-400 mt-1" style={{ fontSize: 8 }}>Клик на маркере → панель управления</p>
                         )}
                       </div>
                     )}
