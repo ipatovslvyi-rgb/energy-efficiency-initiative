@@ -1059,7 +1059,7 @@ export default function EmergencyScheme() {
         </aside>
 
         {/* Основная область */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-hidden flex flex-col">
           {/* Мобильная: кнопка новой + выбор схемы */}
           <div className="flex md:hidden items-center gap-2 px-4 py-2 border-b border-foreground/10 overflow-x-auto">
             <button onClick={createNew} className="flex items-center gap-1 shrink-0 text-xs text-primary border border-primary/30 rounded-lg px-3 py-1.5 hover:bg-primary/10 transition-colors">
@@ -1111,7 +1111,7 @@ export default function EmergencyScheme() {
 
               {/* ФОРМА */}
               {activeTab === "form" && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 overflow-y-auto flex-1 mt-4">
                   {/* Левая колонка */}
                   <div className="flex flex-col gap-5">
                     <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-5">
@@ -1274,84 +1274,136 @@ export default function EmergencyScheme() {
               {activeTab === "preview" && (
                 <>
                 {/* Тулбар предпросмотра */}
-                <div className="flex items-center justify-between px-4 md:px-6 py-2 shrink-0 border-b border-foreground/10 bg-background/50">
-                  <span className="text-xs text-foreground/40 font-mono uppercase tracking-wider">Предпросмотр</span>
+                <div className="flex items-center gap-3 px-4 md:px-6 py-2 shrink-0 border-b border-foreground/10 bg-background/60 backdrop-blur-sm overflow-x-auto">
+                  <span className="text-xs text-foreground/40 font-mono uppercase tracking-wider shrink-0">Предпросмотр</span>
+
+                  {/* Панель выбранного маркера — в тулбаре */}
+                  {selectedMarkerId && (() => {
+                    const mk = markers.find(m => (m.instanceId ?? m.legendId) === selectedMarkerId)
+                    if (!mk) return null
+                    const sc = mk.scale ?? 1
+                    const rot = mk.rotation ?? 0
+                    const item = legend.find(l => l.id === mk.legendId)
+                    return (
+                      <div className="flex items-center gap-2 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
+                        {/* Иконка выбранного */}
+                        <div className="shrink-0 w-7 h-7 flex items-center justify-center border border-blue-400/40 rounded bg-blue-500/10">
+                          {item?.imageUrl
+                            ? <img src={item.imageUrl} alt="" className="w-5 h-5 object-contain" />
+                            : <span className="text-blue-300 text-[10px] font-bold">{item?.symbol}</span>
+                          }
+                        </div>
+                        {/* Размер */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-foreground/40 text-[10px]">Размер</span>
+                          <input type="range" min="0.3" max="3" step="0.1" value={sc}
+                            onChange={e => updateMarker(selectedMarkerId, { scale: parseFloat(e.target.value) })}
+                            className="w-20 accent-blue-400 h-1" />
+                          <span className="text-foreground/70 text-[10px] w-6">{sc.toFixed(1)}×</span>
+                        </div>
+                        {/* Быстрые размеры */}
+                        <div className="flex gap-0.5 shrink-0">
+                          {[0.5, 1, 1.5, 2].map(s => (
+                            <button key={s} onClick={() => updateMarker(selectedMarkerId, { scale: s })}
+                              className={`text-[9px] rounded px-1.5 py-0.5 transition-colors ${Math.abs(sc - s) < 0.05 ? "bg-blue-500 text-white" : "bg-foreground/10 text-foreground/50 hover:bg-foreground/20"}`}>{s}×</button>
+                          ))}
+                        </div>
+                        {/* Разделитель */}
+                        <div className="w-px h-5 bg-foreground/15 shrink-0" />
+                        {/* Поворот */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-foreground/40 text-[10px]">Поворот</span>
+                          <input type="range" min="0" max="359" step="5" value={rot}
+                            onChange={e => updateMarker(selectedMarkerId, { rotation: parseInt(e.target.value) })}
+                            className="w-20 accent-blue-400 h-1" />
+                          <span className="text-foreground/70 text-[10px] w-7">{rot}°</span>
+                        </div>
+                        {/* Быстрые углы */}
+                        <div className="flex gap-0.5 shrink-0">
+                          {[0, 90, 180, 270].map(a => (
+                            <button key={a} onClick={() => updateMarker(selectedMarkerId, { rotation: a })}
+                              className={`text-[9px] rounded px-1.5 py-0.5 transition-colors ${rot === a ? "bg-blue-500 text-white" : "bg-foreground/10 text-foreground/50 hover:bg-foreground/20"}`}>{a}°</button>
+                          ))}
+                        </div>
+                        {/* Разделитель */}
+                        <div className="w-px h-5 bg-foreground/15 shrink-0" />
+                        {/* Копировать / Удалить */}
+                        <button onClick={() => copyMarker(selectedMarkerId)}
+                          className="flex items-center gap-1 shrink-0 text-[10px] text-foreground/60 hover:text-foreground border border-foreground/15 hover:border-foreground/30 rounded-lg px-2 py-1 transition-colors">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                          Копировать
+                        </button>
+                        <button onClick={() => removeMarker(selectedMarkerId)}
+                          className="flex items-center gap-1 shrink-0 text-[10px] text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 rounded-lg px-2 py-1 transition-colors">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                          Удалить
+                        </button>
+                        {/* Закрыть */}
+                        <button onClick={() => setSelectedMarkerId(null)}
+                          className="shrink-0 text-foreground/30 hover:text-foreground/60 transition-colors ml-1">
+                          <Icon name="X" size={14} />
+                        </button>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Кнопка Готово — всегда справа */}
                   <button
                     onClick={() => { setEditingMarkers(e => !e); setPlacingLegendId(null); setSelectedMarkerId(null) }}
-                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${editingMarkers ? "border-blue-400/60 bg-blue-500/15 text-blue-400" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors shrink-0 ml-auto ${editingMarkers ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-400" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}
                   >
-                    <Icon name="MapPin" size={13} />
+                    <Icon name={editingMarkers ? "Check" : "MapPin"} size={13} />
                     {editingMarkers ? "Готово" : "Разместить маркеры"}
                   </button>
                 </div>
-                {/* Скроллируемая область документа */}
-                <div className="flex-1 overflow-auto bg-foreground/5 p-4 md:p-6">
-                <div ref={previewRef} className="bg-white text-black shadow-2xl mx-auto" style={{ fontFamily: "Times New Roman, serif", fontSize: 12, padding: "16px 10px 16px 24px", minWidth: 860, width: "100%", maxWidth: 1200 }}>
 
-                  {/* Шапка (снимается через html2canvas для PDF) */}
-                  <div ref={headerRef} style={{ background: "white" }}>
-                  {/* Заголовок */}
-                  <p className="text-center font-bold mb-2" style={{ fontSize: 13 }}>
-                    Схема аварийного участка — позиция&nbsp;&nbsp;{form.position || "—"}
-                    &nbsp;&nbsp;&nbsp;{form.date}&nbsp;&nbsp;&nbsp;{form.time}&nbsp;&nbsp;({form.timezone})
-                  </p>
+                {/* Полноэкранная рабочая область */}
+                <div className="flex-1 overflow-hidden flex flex-col">
 
-                  {/* Наименование объекта */}
-                  <div className="flex gap-1 mb-1" style={{ fontSize: 12 }}>
-                    <span className="font-bold whitespace-nowrap">Наименование обслуживаемого объекта:</span>
-                    <span>{form.objectName || "—"}</span>
-                  </div>
-
-                  {/* Две колонки: левая инфо + правая газы */}
-                  <div className="flex gap-0 mb-1" style={{ fontSize: 11 }}>
-                    {/* Левая колонка */}
-                    <div style={{ width: "50%", paddingRight: 8 }}>
-                      <div className="flex gap-1 flex-wrap"><span className="font-bold whitespace-nowrap">Вид аварии:</span><span>{form.accidentType || "—"}</span></div>
-                      <div className="flex gap-1 flex-wrap"><span className="font-bold whitespace-nowrap">Дата и время аварии:</span><span>{form.accidentDate}&nbsp;{form.accidentTime}&nbsp;({form.timezone})</span></div>
-                      <div className="flex gap-1 flex-wrap"><span className="font-bold whitespace-nowrap">Место аварии:</span><span className="italic">{form.accidentLocation || "—"}</span></div>
-                      <div className="flex gap-1 flex-wrap"><span className="font-bold whitespace-nowrap">Кол-во воздуха:</span><span>{form.airVolume ? <>{form.airVolume}&nbsp;м³/с</> : "—"}</span></div>
-                      <div className="flex gap-1 flex-wrap"><span className="font-bold whitespace-nowrap">Сечение выработки:</span><span>{form.sectionArea ? <>{form.sectionArea}&nbsp;м²</> : "—"}</span></div>
-                      <div className="flex gap-1 flex-wrap"><span className="font-bold whitespace-nowrap">Телефон КП:</span><span>{form.phoneCP || "—"}</span></div>
-                    </div>
-
-                    {/* Правая: состав атмосферы */}
-                    <div style={{ width: "50%", borderLeft: "1px solid #ccc", paddingLeft: 8 }}>
-                      <p className="font-bold underline mb-1">Состав рудничной атмосферы:</p>
-                      <div className="grid gap-x-2" style={{ gridTemplateColumns: "repeat(3, 1fr)", fontSize: 11 }}>
-                        {[["CO", form.co], ["CO₂", form.co2], ["SO₂", form.so2], ["O₂", form.o2], ["CH₄", form.ch4], ["NO-NO₂", form.nono2], ["t°", form.temperature], ["SO₂", form.so2_2]].filter(([, v]) => v).map(([l, v]) => (
-                          <span key={l} className="whitespace-nowrap"><b>{l}</b>: {v}</span>
-                        ))}
+                  {/* Шапка документа — компактная полоска */}
+                  <div ref={previewRef} className="bg-white text-black" style={{ fontFamily: "Times New Roman, serif" }}>
+                  <div ref={headerRef} className="px-4 pt-2 pb-1" style={{ borderBottom: "1px solid #ccc" }}>
+                    <p className="text-center font-bold" style={{ fontSize: 12 }}>
+                      Схема аварийного участка — позиция&nbsp;{form.position || "—"}
+                      &nbsp;&nbsp;{form.date}&nbsp;{form.time}&nbsp;({form.timezone})
+                    </p>
+                    <div className="flex gap-0 mt-0.5" style={{ fontSize: 10 }}>
+                      <div style={{ width: "50%", paddingRight: 6 }}>
+                        <span className="font-bold">Объект:</span> {form.objectName || "—"} &nbsp;
+                        <span className="font-bold">Авария:</span> {form.accidentType} &nbsp;
+                        <span className="font-bold">Место:</span> {form.accidentLocation || "—"}
                       </div>
-                      {form.smokeLevel && (
-                        <p className="mt-1" style={{ fontSize: 11 }}><b>Задымлённость:</b> {form.smokeLevel}</p>
-                      )}
+                      <div style={{ width: "50%", borderLeft: "1px solid #ccc", paddingLeft: 6 }}>
+                        <span className="font-bold">Дата/время:</span> {form.accidentDate} {form.accidentTime} &nbsp;
+                        <span className="font-bold">Q:</span> {form.airVolume || "—"} м³/с &nbsp;
+                        <span className="font-bold">S:</span> {form.sectionArea || "—"} м² &nbsp;
+                        <span className="font-bold">КП:</span> {form.phoneCP || "—"}
+                      </div>
                     </div>
                   </div>
-                  </div>{/* /headerRef */}
 
-                  {/* Разделитель */}
-                  <div style={{ borderTop: "1px solid #ccc", marginBottom: 4 }} />
-
-                  {/* Картинка + условные обозначения рядом */}
-                  <div className="flex gap-0" style={{ minHeight: 240 }}>
-                    {/* Картинка схемы */}
+                  {/* Рабочая область: картинка во весь экран + панель УО справа */}
+                  <div className="flex" style={{ height: "calc(100vh - 160px)" }}>
+                    {/* Картинка схемы — занимает всё место */}
                     <div
                       ref={imageContainerRef}
-                      className={`relative bg-gray-50 select-none overflow-hidden ${placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : editingMarkers ? "cursor-default" : ""}`}
-                      style={{ flex: 1, minHeight: 240, border: "1px solid #9ca3af" }}
+                      className={`relative bg-gray-100 select-none flex-1 overflow-hidden ${placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : ""}`}
                       onClick={handleImageAreaClick}
                       onMouseMove={handleMouseMove}
                       onMouseUp={handleMouseUp}
                       onMouseLeave={handleMouseUp}
                     >
                       {imageUrl ? (
-                        <img src={imageUrl} alt="Схема" className="block pointer-events-none" style={{ width: "100%", height: "auto" }} />
+                        <img src={imageUrl} alt="Схема" className="block pointer-events-none w-full h-full object-contain" />
                       ) : (
-                        <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height: 240 }}>Схема участка не загружена</div>
+                        <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                          <span className="text-sm">Загрузите схему участка во вкладке «Ввод данных»</span>
+                        </div>
                       )}
                       {placingLegendId && (
-                        <div className="absolute inset-0 border-2 border-dashed border-blue-400 pointer-events-none flex items-center justify-center">
-                          <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded shadow">Кликните для размещения</span>
+                        <div className="absolute inset-0 border-4 border-dashed border-blue-400 pointer-events-none flex items-end justify-center pb-8">
+                          <span className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg shadow-lg">Кликните для размещения УО</span>
                         </div>
                       )}
                       {markers.map(mk => {
@@ -1364,7 +1416,7 @@ export default function EmergencyScheme() {
                         return (
                           <div
                             key={iid}
-                            className="absolute group cursor-grab active:cursor-grabbing"
+                            className="absolute cursor-grab active:cursor-grabbing"
                             style={{
                               left: `${mk.x}%`, top: `${mk.y}%`,
                               transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`,
@@ -1374,135 +1426,62 @@ export default function EmergencyScheme() {
                             onMouseDown={e => handleMarkerMouseDown(e, iid)}
                             onClick={e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) }}
                           >
-                            {/* Иконка без фона */}
                             {item.imageUrl
-                              ? <img
-                                  src={item.imageUrl}
-                                  alt={item.symbol}
-                                  style={{ width: 32, height: 32, objectFit: "contain", display: "block" }}
-                                  draggable={false}
-                                />
-                              : <span className="font-bold text-gray-900 drop-shadow-sm" style={{ fontSize: 13, lineHeight: 1 }}>{item.symbol}</span>
+                              ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 36, height: 36, objectFit: "contain", display: "block" }} draggable={false} />
+                              : <span className="font-bold text-gray-900 drop-shadow" style={{ fontSize: 14, lineHeight: 1 }}>{item.symbol}</span>
                             }
-                            {/* Обводка при выборе */}
                             {isSelected && (
-                              <div className="absolute inset-0 rounded border-2 border-blue-500 pointer-events-none" style={{ margin: -3, width: "calc(100% + 6px)", height: "calc(100% + 6px)" }} />
+                              <div className="absolute rounded border-2 border-blue-500 pointer-events-none" style={{ inset: -4 }} />
                             )}
                           </div>
                         )
                       })}
-
-                      {/* Панель управления выбранным маркером */}
-                      {selectedMarkerId && (() => {
-                        const mk = markers.find(m => (m.instanceId ?? m.legendId) === selectedMarkerId)
-                        if (!mk) return null
-                        const sc = mk.scale ?? 1
-                        const rot = mk.rotation ?? 0
-                        return (
-                          <div
-                            className="absolute z-40 bg-gray-900/95 border border-white/20 rounded-xl shadow-2xl flex flex-col gap-2 p-2.5"
-                            style={{ left: `${Math.min(mk.x, 75)}%`, top: `${Math.max(mk.y - 18, 2)}%`, minWidth: 180 }}
-                            onMouseDown={e => e.stopPropagation()}
-                            onClick={e => e.stopPropagation()}
-                          >
-                            {/* Масштаб */}
-                            <div className="flex items-center gap-2">
-                              <span className="text-white/50 text-[10px] w-14 shrink-0">Размер</span>
-                              <input
-                                type="range" min="0.3" max="3" step="0.1"
-                                value={sc}
-                                onChange={e => updateMarker(selectedMarkerId, { scale: parseFloat(e.target.value) })}
-                                className="flex-1 accent-blue-400 h-1"
-                              />
-                              <span className="text-white text-[10px] w-7 text-right">{sc.toFixed(1)}×</span>
-                            </div>
-                            {/* Вращение */}
-                            <div className="flex items-center gap-2">
-                              <span className="text-white/50 text-[10px] w-14 shrink-0">Поворот</span>
-                              <input
-                                type="range" min="0" max="359" step="5"
-                                value={rot}
-                                onChange={e => updateMarker(selectedMarkerId, { rotation: parseInt(e.target.value) })}
-                                className="flex-1 accent-blue-400 h-1"
-                              />
-                              <span className="text-white text-[10px] w-7 text-right">{rot}°</span>
-                            </div>
-                            {/* Быстрые углы */}
-                            <div className="flex gap-1">
-                              {[0, 90, 180, 270].map(a => (
-                                <button key={a} onClick={() => updateMarker(selectedMarkerId, { rotation: a })}
-                                  className={`flex-1 text-[9px] rounded py-0.5 transition-colors ${rot === a ? "bg-blue-500 text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>{a}°</button>
-                              ))}
-                            </div>
-                            {/* Быстрые размеры */}
-                            <div className="flex gap-1">
-                              {[0.5, 1, 1.5, 2].map(s => (
-                                <button key={s} onClick={() => updateMarker(selectedMarkerId, { scale: s })}
-                                  className={`flex-1 text-[9px] rounded py-0.5 transition-colors ${Math.abs(sc - s) < 0.05 ? "bg-blue-500 text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>{s}×</button>
-                              ))}
-                            </div>
-                            {/* Действия */}
-                            <div className="flex gap-1 border-t border-white/10 pt-2 mt-0.5">
-                              <button onClick={() => copyMarker(selectedMarkerId)}
-                                className="flex-1 flex items-center justify-center gap-1 text-[10px] text-white/70 hover:text-white bg-white/8 hover:bg-white/15 rounded-lg py-1 transition-colors">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                                Копировать
-                              </button>
-                              <button onClick={() => removeMarker(selectedMarkerId)}
-                                className="flex-1 flex items-center justify-center gap-1 text-[10px] text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-lg py-1 transition-colors">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                                Удалить
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })()}
                     </div>
 
-                    {/* Условные обозначения — справа от картинки */}
+                    {/* Правая панель УО */}
                     {legend.length > 0 && (
-                      <div style={{ width: 160, borderLeft: "1px solid #ccc", paddingLeft: 6, paddingTop: 4, flexShrink: 0 }}>
-                        <p className="font-bold underline mb-1" style={{ fontSize: 10 }}>Условные обозначения:</p>
-                        <div className="flex flex-col" style={{ gap: 3 }}>
+                      <div className="bg-white border-l border-gray-200 overflow-y-auto shrink-0" style={{ width: 180, padding: "6px 8px" }}>
+                        <p className="font-bold underline mb-2" style={{ fontSize: 10 }}>Условные обозначения:</p>
+                        <div className="flex flex-col gap-1">
                           {legend.map(item => {
                             const placedCount = markers.filter(m => m.legendId === item.id).length
                             const isPlacing = placingLegendId === item.id
                             return (
-                              <div key={item.id} className="flex items-center" style={{ gap: 4, fontSize: 9 }}>
-                                <span className="shrink-0" style={{ width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                              <div key={item.id}
+                                className={`flex items-center gap-1.5 rounded px-1 py-0.5 cursor-pointer transition-colors ${isPlacing ? "bg-blue-50 ring-1 ring-blue-300" : "hover:bg-gray-50"}`}
+                                onClick={() => {
+                                  if (!editingMarkers) setEditingMarkers(true)
+                                  setPlacingLegendId(isPlacing ? null : item.id)
+                                  setSelectedMarkerId(null)
+                                }}
+                                title={isPlacing ? "Отмена" : "Кликните на схеме для размещения"}
+                              >
+                                <span className="shrink-0 flex items-center justify-center" style={{ width: 18, height: 18 }}>
                                   {item.imageUrl
-                                    ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 14, height: 14, objectFit: "contain" }} />
-                                    : <span style={{ fontWeight: "bold", fontSize: 8 }}>{item.symbol}</span>
+                                    ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 16, height: 16, objectFit: "contain" }} />
+                                    : <span style={{ fontWeight: "bold", fontSize: 9 }}>{item.symbol}</span>
                                   }
                                 </span>
-                                <span style={{ flex: 1, lineHeight: 1.2 }}>{item.description}</span>
+                                <span className="flex-1 leading-tight" style={{ fontSize: 9 }}>{item.description}</span>
                                 {placedCount > 0 && (
-                                  <span style={{ fontSize: 8, color: "#6b7280", marginRight: 1 }}>×{placedCount}</span>
+                                  <span className="shrink-0 text-blue-500 font-bold" style={{ fontSize: 8 }}>×{placedCount}</span>
                                 )}
-                                <button
-                                  title={isPlacing ? "Отмена" : "Разместить на схеме"}
-                                  onClick={() => {
-                                    if (!editingMarkers) setEditingMarkers(true)
-                                    setPlacingLegendId(isPlacing ? null : item.id)
-                                    setSelectedMarkerId(null)
-                                  }}
-                                  className={`shrink-0 rounded px-0.5 text-xs transition-colors ${isPlacing ? "text-blue-600 bg-blue-100" : "text-gray-400 hover:text-gray-700"}`}
-                                >{isPlacing ? "✕" : "📍"}</button>
+                                {isPlacing && <span className="shrink-0 text-blue-500" style={{ fontSize: 9 }}>✕</span>}
                               </div>
                             )
                           })}
                         </div>
-                        <p className="text-gray-400 mt-1" style={{ fontSize: 8 }}>📍 — разместить · клик → настройки</p>
+                        <p className="text-gray-400 mt-2 leading-tight" style={{ fontSize: 7 }}>Клик по строке → разместить на схеме</p>
                       </div>
                     )}
                   </div>
 
                   {/* Подписи */}
-                  <div className="flex justify-between pt-2" style={{ fontSize: 11 }}>
-                    <span className="font-bold">Руководитель горноспасательных работ:&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 120 }}>{form.headRescue}</span></span>
-                    <span>Помощник командира отряда&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 100 }}>{form.assistantCommander}</span>&nbsp;/{form.commanderName}/</span>
+                  <div className="flex justify-between bg-white px-4 py-1.5" style={{ fontSize: 10, borderTop: "1px solid #ccc" }}>
+                    <span className="font-bold">Руководитель ГСР:&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 100 }}>{form.headRescue}</span></span>
+                    <span>Пом. командира отряда&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 80 }}>{form.assistantCommander}</span>&nbsp;/{form.commanderName}/</span>
                   </div>
-                </div>
+                  </div>
                 </div>
                 </>
               )}
