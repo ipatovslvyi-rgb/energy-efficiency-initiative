@@ -529,7 +529,7 @@ export default function RouteMap() {
               className="bg-white shadow-2xl mx-auto"
               style={{
                 width: A3_W_PX,
-                height: A3_H_PX,
+                minHeight: A3_H_PX,
                 fontFamily: "Times New Roman, Times, serif",
                 fontSize: 11,
                 color: "#000",
@@ -539,8 +539,6 @@ export default function RouteMap() {
                 paddingTop: CONTENT_T,
                 paddingRight: CONTENT_R,
                 paddingBottom: CONTENT_B,
-                display: "flex",
-                flexDirection: "column",
               }}
             >
               {/* Рамка — имитация штампа */}
@@ -555,19 +553,21 @@ export default function RouteMap() {
               {/* Строка СОГЛАСОВАНО / УТВЕРЖДАЮ */}
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 {/* Согласовано */}
-                <div style={{ width: "45%", fontSize: 10, lineHeight: 1.4 }}>
+                <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5 }}>
                   <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>СОГЛАСОВАНО</div>
                   <div>{agree.role}</div>
                   <div>{agree.org}</div>
-                  <div style={{ borderBottom: "1px solid #555", display: "inline-block", minWidth: 120 }}>{agree.name}</div>
+                  <div>{agree.name}</div>
+                  <div style={{ borderBottom: "1px solid #555", width: "80%", marginBottom: 1 }} />
                   <div>{agree.date}</div>
                 </div>
                 {/* Утверждаю */}
-                <div style={{ width: "45%", fontSize: 10, lineHeight: 1.4, textAlign: "right" }}>
+                <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5, textAlign: "right" }}>
                   <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>УТВЕРЖДАЮ</div>
                   <div>{approve.role}</div>
                   <div>{approve.org}</div>
-                  <div style={{ borderBottom: "1px solid #555", display: "inline-block", minWidth: 120 }}>{approve.name}</div>
+                  <div>{approve.name}</div>
+                  <div style={{ borderBottom: "1px solid #555", width: "80%", marginBottom: 1, marginLeft: "auto" }} />
                   <div>{approve.date}</div>
                 </div>
               </div>
@@ -579,13 +579,13 @@ export default function RouteMap() {
                 ))}
               </div>
 
-              {/* Картинка с рисунком — занимает максимум места */}
-              <div style={{ flex: 1, overflow: "hidden", border: "1px solid #999", marginBottom: 4, position: "relative", minHeight: 0 }}>
+              {/* Картинка с рисунком */}
+              <div style={{ border: "1px solid #999", marginBottom: 4, lineHeight: 0 }}>
                 {compositeUrl ? (
                   <img src={compositeUrl} alt="Схема маршрута"
-                    style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                    style={{ width: "100%", height: "auto", display: "block", maxWidth: "100%" }} />
                 ) : (
-                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 12 }}>
+                  <div style={{ width: "100%", height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 12 }}>
                     Карта не загружена
                   </div>
                 )}
