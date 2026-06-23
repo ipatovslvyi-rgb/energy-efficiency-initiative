@@ -549,13 +549,13 @@ export default function RouteMap() {
               marginLeft: "auto",
               marginRight: "auto",
             }}>
-            {/* Лист А3 книжный */}
+            {/* Лист А3 книжный — flex колонка, таблица и подпись внизу */}
             <div
               ref={previewRef}
               className="bg-white shadow-2xl"
               style={{
                 width: A3_W_PX,
-                minHeight: A3_H_PX,
+                height: A3_H_PX,
                 fontFamily: "Times New Roman, Times, serif",
                 fontSize: 11,
                 color: "#000",
@@ -565,6 +565,8 @@ export default function RouteMap() {
                 paddingTop: CONTENT_T,
                 paddingRight: CONTENT_R,
                 paddingBottom: CONTENT_B,
+                display: "flex",
+                flexDirection: "column",
               }}
             >
               {/* Рамка — имитация штампа */}
@@ -577,7 +579,7 @@ export default function RouteMap() {
               }} />
 
               {/* Строка СОГЛАСОВАНО / УТВЕРЖДАЮ */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, flexShrink: 0 }}>
                 {/* Согласовано */}
                 <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5 }}>
                   <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>СОГЛАСОВАНО</div>
@@ -599,26 +601,26 @@ export default function RouteMap() {
               </div>
 
               {/* Заголовок */}
-              <div style={{ textAlign: "center", marginBottom: 6 }}>
+              <div style={{ textAlign: "center", marginBottom: 6, flexShrink: 0 }}>
                 {titleLines.map((line, i) => (
                   <div key={i} style={{ fontWeight: i === 0 ? "bold" : "normal", fontSize: i === 0 ? 12 : 11 }}>{line || "\u00A0"}</div>
                 ))}
               </div>
 
-              {/* Картинка с рисунком */}
-              <div style={{ border: "1px solid #999", marginBottom: 4, lineHeight: 0 }}>
+              {/* Картинка с рисунком — занимает всё свободное место */}
+              <div style={{ flex: 1, border: "1px solid #999", marginBottom: 6, lineHeight: 0, overflow: "hidden", minHeight: 0 }}>
                 {compositeUrl ? (
                   <img src={compositeUrl} alt="Схема маршрута"
-                    style={{ width: "100%", height: "auto", display: "block", maxWidth: "100%" }} />
+                    style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
                 ) : (
-                  <div style={{ width: "100%", height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 12 }}>
+                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 12 }}>
                     Карта не загружена
                   </div>
                 )}
               </div>
 
-              {/* Таблица маршрутов */}
-              <div style={{ marginBottom: 6 }}>
+              {/* Таблица маршрутов — прибита к низу, растёт при добавлении строк */}
+              <div style={{ flexShrink: 0, marginBottom: 6 }}>
                 <table style={{ width: "60%", margin: "0 auto", borderCollapse: "collapse", fontSize: 10 }}>
                   <thead>
                     <tr>
@@ -648,8 +650,8 @@ export default function RouteMap() {
                 </table>
               </div>
 
-              {/* Разработал */}
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 6, fontSize: 10 }}>
+              {/* Разработал — прибит к низу */}
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 6, fontSize: 10 }}>
                 <span style={{ whiteSpace: "nowrap" }}>Разработал:</span>
                 <span style={{ flex: 1, borderBottom: "1px solid #555", minWidth: 200, display: "inline-block" }}>{developer}</span>
                 <span style={{ flex: 1, borderBottom: "1px solid #555", minWidth: 80, display: "inline-block" }}></span>
