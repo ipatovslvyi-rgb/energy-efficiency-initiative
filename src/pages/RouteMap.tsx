@@ -663,21 +663,18 @@ export default function RouteMap() {
               </div>
 
               {/* Разработал — прибит к низу, три колонки */}
-              <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 0, fontSize: 10 }}>
-                {/* Должность + подпись */}
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 0, fontSize: 10, marginBottom: 8 }}>
+                {/* Должность */}
                 <div style={{ flex: "0 0 38%", paddingRight: 8 }}>
-                  <div style={{ color: "#666", fontSize: 9, marginBottom: 1 }}>должность, подпись</div>
-                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 1 }}>{devRole}</div>
+                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>{devRole}</div>
                 </div>
-                {/* Пустая зона для подписи */}
+                {/* Подпись */}
                 <div style={{ flex: "0 0 22%", paddingRight: 8 }}>
-                  <div style={{ color: "#666", fontSize: 9, marginBottom: 1 }}>&nbsp;</div>
-                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 1 }}>{devSignature}&nbsp;</div>
+                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>&nbsp;</div>
                 </div>
                 {/* ФИО */}
                 <div style={{ flex: "0 0 40%" }}>
-                  <div style={{ color: "#666", fontSize: 9, marginBottom: 1 }}>фамилия и инициалы</div>
-                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 1 }}>{devName}</div>
+                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>{devName}</div>
                 </div>
               </div>
             </div>
