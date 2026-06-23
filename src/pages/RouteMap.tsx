@@ -24,9 +24,9 @@ type DrawTool = "pen" | "eraser"
 type ActiveTab = "editor" | "preview"
 
 // ── А3 размеры в пикселях при 96dpi (для экрана)
-// A3: 420×297mm. При экспорте используем 3x scale → 1260×891px = ~150dpi print
-const A3_W_MM = 420
-const A3_H_MM = 297
+// A3 книжная: 297×420mm. При экспорте используем 3x scale → ~150dpi print
+const A3_W_MM = 297
+const A3_H_MM = 420
 // Поля: лево 30мм, верх 20мм, право 10мм, низ 20мм
 const MARGIN = { left: 30, top: 20, right: 10, bottom: 20 }
 
@@ -227,7 +227,7 @@ export default function RouteMap() {
       })
       const imgData = canvas.toDataURL("image/png")
       const pdf = new jsPDF({
-        orientation: "landscape",
+        orientation: "portrait",
         unit: "mm",
         format: "a3",
       })
@@ -632,7 +632,7 @@ export default function RouteMap() {
 
             {/* Подсказка под листом */}
             <p className="text-center text-foreground/30 text-xs mt-4">
-              Формат А3 (420×297мм) · Поля: лево 30мм, верх/низ 20мм, право 10мм
+              Формат А3 книжный (297×420мм) · Поля: лево 30мм, верх/низ 20мм, право 10мм
             </p>
           </div>
         )}
