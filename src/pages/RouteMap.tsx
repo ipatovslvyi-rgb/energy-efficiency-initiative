@@ -244,12 +244,29 @@ export default function RouteMap() {
     }
   }, [activeTab, getCompositeImageUrl])
 
-  // Поля А3 в px (для отображения на экране, масштабированного)
-  // Мы отображаем А3 листом фиксированной ширины (вписанной в viewport)
+  // Поля А3 в px (натуральный размер при 96dpi)
   const CONTENT_L = Math.round(MARGIN.left * PX_PER_MM)
   const CONTENT_T = Math.round(MARGIN.top * PX_PER_MM)
   const CONTENT_R = Math.round(MARGIN.right * PX_PER_MM)
   const CONTENT_B = Math.round(MARGIN.bottom * PX_PER_MM)
+
+  // Масштабирование листа по ширине контейнера
+  const previewWrapRef = useRef<HTMLDivElement>(null)
+  const [previewScale, setPreviewScale] = useState(1)
+
+  useEffect(() => {
+    if (activeTab !== "preview") return
+    const calcScale = () => {
+      const wrap = previewWrapRef.current
+      if (!wrap) return
+      const availW = wrap.clientWidth - 32 // 16px padding с каждой стороны
+      const scale = Math.min(1, availW / A3_W_PX)
+      setPreviewScale(scale)
+    }
+    calcScale()
+    window.addEventListener("resize", calcScale)
+    return () => window.removeEventListener("resize", calcScale)
+  }, [activeTab])
 
   return (
     <div className="relative min-h-screen text-foreground">
@@ -513,7 +530,7 @@ export default function RouteMap() {
 
         {/* ═══════════════ ПРЕДПРОСМОТР А3 ═══════════════ */}
         {activeTab === "preview" && (
-          <div className="flex-1 overflow-auto bg-foreground/10 p-4 md:p-8">
+          <div ref={previewWrapRef} className="flex-1 overflow-auto bg-foreground/10 py-6 px-4">
             {exporting && (
               <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
                 <div className="bg-background border border-foreground/15 rounded-2xl p-8 flex flex-col items-center gap-4">
@@ -523,10 +540,19 @@ export default function RouteMap() {
               </div>
             )}
 
-            {/* Лист А3 — горизонтальный */}
+            {/* Обёртка для масштабирования */}
+            <div style={{
+              width: A3_W_PX,
+              transformOrigin: "top center",
+              transform: `scale(${previewScale})`,
+              marginBottom: previewScale < 1 ? A3_H_PX * (previewScale - 1) : 0,
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}>
+            {/* Лист А3 книжный */}
             <div
               ref={previewRef}
-              className="bg-white shadow-2xl mx-auto"
+              className="bg-white shadow-2xl"
               style={{
                 width: A3_W_PX,
                 minHeight: A3_H_PX,
@@ -629,6 +655,8 @@ export default function RouteMap() {
                 <span style={{ flex: 1, borderBottom: "1px solid #555", minWidth: 80, display: "inline-block" }}></span>
               </div>
             </div>
+
+            </div>{/* конец обёртки масштабирования */}
 
             {/* Подсказка под листом */}
             <p className="text-center text-foreground/30 text-xs mt-4">

@@ -1361,7 +1361,7 @@ export default function EmergencyScheme() {
                 <div className="flex-1 overflow-hidden flex flex-col">
 
                   {/* Шапка документа — компактная полоска */}
-                  <div ref={previewRef} className="bg-white text-black" style={{ fontFamily: "Times New Roman, serif" }}>
+                  <div ref={previewRef} className="bg-white text-black flex flex-col flex-1 min-h-0 overflow-hidden" style={{ fontFamily: "Times New Roman, serif" }}>
                   <div ref={headerRef} className="px-4 pt-2 pb-1" style={{ borderBottom: "1px solid #ccc" }}>
                     <p className="text-center font-bold" style={{ fontSize: 12 }}>
                       Схема аварийного участка — позиция&nbsp;{form.position || "—"}
@@ -1383,7 +1383,7 @@ export default function EmergencyScheme() {
                   </div>
 
                   {/* Рабочая область: картинка во весь экран + панель УО справа */}
-                  <div className="flex" style={{ height: "calc(100vh - 160px)" }}>
+                  <div className="flex flex-1 min-h-0">
                     {/* Картинка схемы — занимает всё место */}
                     <div
                       ref={imageContainerRef}
