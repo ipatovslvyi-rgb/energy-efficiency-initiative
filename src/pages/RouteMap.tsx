@@ -73,7 +73,9 @@ export default function RouteMap() {
     { id: "1", color: "#FFFF00", length: "1,8", time: "2,0" },
     { id: "2", color: "#FF0000", length: "", time: "" },
   ])
-  const [developer, setDeveloper] = useState("")
+  const [devRole, setDevRole] = useState("")
+  const [devName, setDevName] = useState("")
+  const [devSignature] = useState("")
 
   // Canvas рисование
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -519,9 +521,19 @@ export default function RouteMap() {
 
               {/* Разработал */}
               <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4">
-                <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest mb-2">Разработал</p>
-                <input value={developer} onChange={e => setDeveloper(e.target.value)} placeholder="ФИО"
-                  className="w-full bg-transparent border-b border-foreground/20 hover:border-foreground/40 focus:border-primary/60 outline-none text-sm text-foreground placeholder:text-foreground/25 transition-colors" />
+                <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest mb-3">Разработал</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] text-foreground/40 font-mono uppercase tracking-wider">Должность</label>
+                    <input value={devRole} onChange={e => setDevRole(e.target.value)} placeholder="ПКО, инженер и т.д."
+                      className="w-full bg-transparent border-b border-foreground/20 hover:border-foreground/40 focus:border-primary/60 outline-none text-sm text-foreground placeholder:text-foreground/25 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-foreground/40 font-mono uppercase tracking-wider">ФИО</label>
+                    <input value={devName} onChange={e => setDevName(e.target.value)} placeholder="Фамилия И.О."
+                      className="w-full bg-transparent border-b border-foreground/20 hover:border-foreground/40 focus:border-primary/60 outline-none text-sm text-foreground placeholder:text-foreground/25 transition-colors" />
+                  </div>
+                </div>
               </div>
 
             </div>
@@ -650,11 +662,23 @@ export default function RouteMap() {
                 </table>
               </div>
 
-              {/* Разработал — прибит к низу */}
-              <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 6, fontSize: 10 }}>
-                <span style={{ whiteSpace: "nowrap" }}>Разработал:</span>
-                <span style={{ flex: 1, borderBottom: "1px solid #555", minWidth: 200, display: "inline-block" }}>{developer}</span>
-                <span style={{ flex: 1, borderBottom: "1px solid #555", minWidth: 80, display: "inline-block" }}></span>
+              {/* Разработал — прибит к низу, три колонки */}
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 0, fontSize: 10 }}>
+                {/* Должность + подпись */}
+                <div style={{ flex: "0 0 38%", paddingRight: 8 }}>
+                  <div style={{ color: "#666", fontSize: 9, marginBottom: 1 }}>должность, подпись</div>
+                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 1 }}>{devRole}</div>
+                </div>
+                {/* Пустая зона для подписи */}
+                <div style={{ flex: "0 0 22%", paddingRight: 8 }}>
+                  <div style={{ color: "#666", fontSize: 9, marginBottom: 1 }}>&nbsp;</div>
+                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 1 }}>{devSignature}&nbsp;</div>
+                </div>
+                {/* ФИО */}
+                <div style={{ flex: "0 0 40%" }}>
+                  <div style={{ color: "#666", fontSize: 9, marginBottom: 1 }}>фамилия и инициалы</div>
+                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 1 }}>{devName}</div>
+                </div>
               </div>
             </div>
 
