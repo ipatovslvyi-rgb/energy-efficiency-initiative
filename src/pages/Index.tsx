@@ -242,7 +242,16 @@ export default function Index() {
 
             {/* Правая часть — сетка расчётов */}
             <div className="animate-in fade-in slide-in-from-right-8 duration-1000 delay-400 w-full lg:max-w-[420px]">
-              <p className="mb-3 font-mono text-xs text-foreground/40 uppercase tracking-widest">Расчёты</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest">Расчёты</p>
+                <button
+                  onClick={() => navigate("/route-map")}
+                  className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all duration-200"
+                >
+                  <Icon name="Map" size={13} />
+                  Проф. служба
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {CALCS.map((item) => (
                   <button
