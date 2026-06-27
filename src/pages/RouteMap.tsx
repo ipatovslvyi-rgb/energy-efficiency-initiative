@@ -286,21 +286,79 @@ export default function RouteMap() {
     }
   }
 
+  // ── Общий рендер документа в canvas (scale=3 для качества) ──────────────────
+  const renderDocumentCanvas = async (): Promise<HTMLCanvasElement> => {
+    const { default: html2canvas } = await import("html2canvas")
+
+    // Перед рендером временно заменяем img на canvas с нарисованным изображением
+    // чтобы html2canvas видел точные пиксели без objectFit
+    const previewEl = previewRef.current!
+    const imgEl = previewEl.querySelector("img[alt='Схема маршрута']") as HTMLImageElement | null
+
+    let tempCanvas: HTMLCanvasElement | null = null
+    let imgParent: HTMLElement | null = null
+    let imgNextSibling: ChildNode | null = null
+
+    if (imgEl && compositeUrl) {
+      const natImg = new Image()
+      await new Promise<void>(res => { natImg.onload = () => res(); natImg.src = compositeUrl })
+
+      const container = imgEl.parentElement!
+      const cW = container.clientWidth
+      const cH = container.clientHeight
+
+      // Вычисляем размер с сохранением пропорций (contain)
+      const imgRatio = natImg.naturalWidth / natImg.naturalHeight
+      const boxRatio = cW / cH
+      let dw: number, dh: number, dx: number, dy: number
+      if (imgRatio > boxRatio) {
+        dw = cW; dh = cW / imgRatio; dx = 0; dy = (cH - dh) / 2
+      } else {
+        dh = cH; dw = cH * imgRatio; dx = (cW - dw) / 2; dy = 0
+      }
+
+      tempCanvas = document.createElement("canvas")
+      tempCanvas.width = cW
+      tempCanvas.height = cH
+      const tc = tempCanvas.getContext("2d")!
+      tc.fillStyle = "#ffffff"
+      tc.fillRect(0, 0, cW, cH)
+      tc.drawImage(natImg, dx, dy, dw, dh)
+      tempCanvas.style.position = "absolute"
+      tempCanvas.style.inset = "0"
+      tempCanvas.style.width = cW + "px"
+      tempCanvas.style.height = cH + "px"
+
+      imgParent = container
+      imgNextSibling = imgEl.nextSibling
+      imgEl.style.display = "none"
+      container.insertBefore(tempCanvas, imgEl)
+    }
+
+    await new Promise(r => setTimeout(r, 50))
+    const result = await html2canvas(previewEl, {
+      scale: 3,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+    })
+
+    // Убираем временный canvas, возвращаем img
+    if (tempCanvas && imgParent) {
+      imgParent.removeChild(tempCanvas)
+    }
+    if (imgEl) imgEl.style.display = ""
+
+    return result
+  }
+
   // ── Экспорт PNG ──────────────────────────────────────────────────────────────
   const exportPNG = async () => {
-    const el = previewRef.current; if (!el) return
+    if (!previewRef.current) return
     setExporting("png")
     try {
-      // Импортируем html2canvas динамически
-      const { default: html2canvas } = await import("html2canvas")
-      await new Promise(r => setTimeout(r, 300))
-      const canvas = await html2canvas(el, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      })
+      const canvas = await renderDocumentCanvas()
       const link = document.createElement("a")
       link.download = "Маршрутная_карта.png"
       link.href = canvas.toDataURL("image/png")
@@ -308,27 +366,15 @@ export default function RouteMap() {
     } finally { setExporting(null) }
   }
 
-  // ── Экспорт PDF А3 — рисуем через canvas напрямую ────────────────────────────
+  // ── Экспорт PDF А3 ────────────────────────────────────────────────────────────
   const exportPDF = async () => {
-    const el = previewRef.current; if (!el) return
+    if (!previewRef.current) return
     setExporting("pdf")
     try {
-      const { default: html2canvas } = await import("html2canvas")
-      await new Promise(r => setTimeout(r, 300))
-      const canvas = await html2canvas(el, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      })
+      const canvas = await renderDocumentCanvas()
       const imgData = canvas.toDataURL("image/png")
       const pdfOrientation = orientation === "landscape" ? "landscape" : "portrait"
-      const pdf = new jsPDF({
-        orientation: pdfOrientation,
-        unit: "mm",
-        format: "a3",
-      })
+      const pdf = new jsPDF({ orientation: pdfOrientation, unit: "mm", format: "a3" })
       pdf.addImage(imgData, "PNG", 0, 0, A3_W_MM, A3_H_MM)
       pdf.save("Маршрутная_карта.pdf")
     } finally { setExporting(null) }
@@ -765,29 +811,20 @@ export default function RouteMap() {
                 ))}
               </div>
 
-              {/* Картинка — занимает всё свободное место, пропорции сохраняются вручную */}
-              <div style={{ flex: 1, border: "1px solid #999", marginBottom: 6, overflow: "hidden", minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}>
-                {compositeUrl ? (() => {
-                  // Вычисляем размеры с сохранением пропорций (letterbox внутри контейнера)
-                  // Контейнер = ширина листа минус поля, высота = flex 1 (неизвестна до рендера)
-                  // Используем width:100%, height:auto — изображение не растягивается по высоте
-                  const ratio = compositeNatH > 0 ? compositeNatW / compositeNatH : 4 / 3
-                  return (
-                    <img
-                      src={compositeUrl}
-                      alt="Схема маршрута"
-                      style={{
-                        display: "block",
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        width: ratio >= 1 ? "100%" : "auto",
-                        height: ratio >= 1 ? "auto" : "100%",
-                        objectFit: "unset",
-                      }}
-                    />
-                  )
-                })() : (
-                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 12 }}>
+              {/* Картинка — img с contain через явные max размеры, без objectFit */}
+              <div style={{ flex: 1, minHeight: 0, border: "1px solid #999", marginBottom: 6, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {compositeUrl ? (
+                  <img
+                    src={compositeUrl}
+                    alt="Схема маршрута"
+                    style={{
+                      display: "block",
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                    }}
+                  />
+                ) : (
+                  <div style={{ color: "#aaa", fontSize: 12 }}>
                     Карта не загружена
                   </div>
                 )}
