@@ -286,76 +286,189 @@ export default function RouteMap() {
     }
   }
 
-  // ── Общий рендер документа в canvas (scale=3 для качества) ──────────────────
-  const renderDocumentCanvas = async (): Promise<HTMLCanvasElement> => {
-    const { default: html2canvas } = await import("html2canvas")
+  // ── Рендер документа напрямую через Canvas API (без html2canvas) ─────────────
+  const renderDocumentCanvas = useCallback(async (): Promise<HTMLCanvasElement> => {
+    const SCALE = 3
+    const W = A3_W_PX * SCALE
+    const H = A3_H_PX * SCALE
+    const s = SCALE
 
-    // Перед рендером временно заменяем img на canvas с нарисованным изображением
-    // чтобы html2canvas видел точные пиксели без objectFit
-    const previewEl = previewRef.current!
-    const imgEl = previewEl.querySelector("img[alt='Схема маршрута']") as HTMLImageElement | null
+    const ML = CONTENT_L * s
+    const MT = CONTENT_T * s
+    const MR = CONTENT_R * s
+    const MB = CONTENT_B * s
+    const innerW = W - ML - MR
+    const innerH = H - MT - MB
 
-    let tempCanvas: HTMLCanvasElement | null = null
-    let imgParent: HTMLElement | null = null
-    let imgNextSibling: ChildNode | null = null
+    const cv = document.createElement("canvas")
+    cv.width = W
+    cv.height = H
+    const ctx = cv.getContext("2d")!
 
-    if (imgEl && compositeUrl) {
+    // Фон
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, W, H)
+
+    // Рамка
+    ctx.strokeStyle = "#000"
+    ctx.lineWidth = 1
+    ctx.strokeRect(ML - 2, MT - 2, innerW + 4, innerH + 4)
+
+    let curY = MT
+    const fontSize = (n: number) => n * s
+    // ── СОГЛАСОВАНО / УТВЕРЖДАЮ ──
+    const headerH = 80 * s
+    ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
+    ctx.fillStyle = "#000"
+    ctx.textBaseline = "top"
+    ctx.fillText("СОГЛАСОВАНО", ML, curY)
+
+    const agreeLines = [agree.role, agree.org, agree.name]
+    ctx.font = `${fontSize(10)}px "Times New Roman"`
+    agreeLines.forEach((t, i) => ctx.fillText(t, ML, curY + (i + 1) * 14 * s))
+    // линия под именем
+    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
+    ctx.beginPath()
+    ctx.moveTo(ML, curY + 4 * 14 * s)
+    ctx.lineTo(ML + innerW * 0.38, curY + 4 * 14 * s)
+    ctx.stroke()
+    ctx.fillText(agree.date, ML, curY + (4 * 14 + 2) * s)
+
+    // УТВЕРЖДАЮ — правый блок
+    ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
+    ctx.textAlign = "right"
+    ctx.fillText("УТВЕРЖДАЮ", ML + innerW, curY)
+    ctx.font = `${fontSize(10)}px "Times New Roman"`
+    const appLines = [approve.role, approve.org, approve.name]
+    appLines.forEach((t, i) => ctx.fillText(t, ML + innerW, curY + (i + 1) * 14 * s))
+    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
+    ctx.beginPath()
+    ctx.moveTo(ML + innerW - innerW * 0.38, curY + 4 * 14 * s)
+    ctx.lineTo(ML + innerW, curY + 4 * 14 * s)
+    ctx.stroke()
+    ctx.fillText(approve.date, ML + innerW, curY + (4 * 14 + 2) * s)
+    ctx.textAlign = "left"
+
+    curY += headerH
+
+    // ── ЗАГОЛОВОК ──
+    titleLines.forEach((line, i) => {
+      if (!line) return
+      ctx.font = i === 0
+        ? `bold ${fontSize(12)}px "Times New Roman"`
+        : `${fontSize(11)}px "Times New Roman"`
+      ctx.fillStyle = "#000"
+      ctx.textAlign = "center"
+      ctx.fillText(line, ML + innerW / 2, curY + i * 14 * s)
+    })
+    ctx.textAlign = "left"
+    const titleH = titleLines.length * 14 * s + 4 * s
+    curY += titleH + 4 * s
+
+    // ── КАРТИНКА ──
+    // Оставляем место для таблицы и подписи внизу
+    const tableRowH = 14 * s
+    const tableRows = rows.length
+    const tableH = (3 + tableRows) * tableRowH + 6 * s // header+subheader+rows+gap
+    const signH = 22 * s
+    const imgAreaH = H - curY - MB - tableH - signH - 6 * s
+
+    ctx.strokeStyle = "#999"; ctx.lineWidth = 1
+    ctx.strokeRect(ML, curY, innerW, imgAreaH)
+
+    if (compositeUrl && compositeNatW > 0) {
       const natImg = new Image()
       await new Promise<void>(res => { natImg.onload = () => res(); natImg.src = compositeUrl })
-
-      const container = imgEl.parentElement!
-      const cW = container.clientWidth
-      const cH = container.clientHeight
-
-      // Вычисляем размер с сохранением пропорций (contain)
-      const imgRatio = natImg.naturalWidth / natImg.naturalHeight
-      const boxRatio = cW / cH
+      // contain
+      const ir = compositeNatW / compositeNatH
+      const br = innerW / imgAreaH
       let dw: number, dh: number, dx: number, dy: number
-      if (imgRatio > boxRatio) {
-        dw = cW; dh = cW / imgRatio; dx = 0; dy = (cH - dh) / 2
-      } else {
-        dh = cH; dw = cH * imgRatio; dx = (cW - dw) / 2; dy = 0
-      }
-
-      tempCanvas = document.createElement("canvas")
-      tempCanvas.width = cW
-      tempCanvas.height = cH
-      const tc = tempCanvas.getContext("2d")!
-      tc.fillStyle = "#ffffff"
-      tc.fillRect(0, 0, cW, cH)
-      tc.drawImage(natImg, dx, dy, dw, dh)
-      tempCanvas.style.position = "absolute"
-      tempCanvas.style.inset = "0"
-      tempCanvas.style.width = cW + "px"
-      tempCanvas.style.height = cH + "px"
-
-      imgParent = container
-      imgNextSibling = imgEl.nextSibling
-      imgEl.style.display = "none"
-      container.insertBefore(tempCanvas, imgEl)
+      if (ir > br) { dw = innerW; dh = innerW / ir; dx = 0; dy = (imgAreaH - dh) / 2 }
+      else { dh = imgAreaH; dw = imgAreaH * ir; dx = (innerW - dw) / 2; dy = 0 }
+      ctx.drawImage(natImg, ML + dx, curY + dy, dw, dh)
+    } else {
+      ctx.fillStyle = "#aaa"
+      ctx.font = `${fontSize(11)}px "Times New Roman"`
+      ctx.textAlign = "center"
+      ctx.fillText("Карта не загружена", ML + innerW / 2, curY + imgAreaH / 2)
+      ctx.textAlign = "left"
     }
 
-    await new Promise(r => setTimeout(r, 50))
-    const result = await html2canvas(previewEl, {
-      scale: 3,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#ffffff",
-      logging: false,
+    curY += imgAreaH + 6 * s
+
+    // ── ТАБЛИЦА ──
+    const tableW = innerW * 0.62
+    const tableX = ML + (innerW - tableW) / 2
+    const cols = [tableW * 0.07, tableW * 0.12, tableW * 0.46, tableW * 0.35]
+    const colX = [tableX, tableX + cols[0], tableX + cols[0] + cols[1], tableX + cols[0] + cols[1] + cols[2]]
+
+    ctx.strokeStyle = "#000"; ctx.lineWidth = 0.5
+    ctx.font = `${fontSize(9)}px "Times New Roman"`
+    ctx.fillStyle = "#000"
+
+    // Заголовок таблицы (2 строки шапки + строки данных)
+    const drawCell = (x: number, y: number, w: number, h: number, text: string, align: "left"|"center"|"right" = "center") => {
+      ctx.strokeRect(x, y, w, h)
+      ctx.textAlign = align
+      const tx = align === "center" ? x + w / 2 : align === "right" ? x + w - 3 * s : x + 3 * s
+      ctx.fillText(text, tx, y + h / 2 - 4 * s, w - 4 * s)
+      ctx.textAlign = "left"
+    }
+
+    // Строка «Маршрут профилактического обследования»
+    drawCell(tableX, curY, tableW, tableRowH, "Маршрут профилактического обследования")
+    curY += tableRowH
+
+    // Шапка колонок
+    drawCell(colX[0], curY, cols[0], tableRowH, "№")
+    drawCell(colX[1], curY, cols[1], tableRowH, "Цвет")
+    drawCell(colX[2], curY, cols[2], tableRowH, "Протяжённость маршрута (км.)")
+    drawCell(colX[3], curY, cols[3], tableRowH, "Время обследования (ч.)")
+    curY += tableRowH
+
+    // Строки данных
+    rows.forEach((row, idx) => {
+      drawCell(colX[0], curY, cols[0], tableRowH, String(idx + 1))
+      // цвет
+      ctx.strokeRect(colX[1], curY, cols[1], tableRowH)
+      const sw = 28 * s, sh = 8 * s
+      const sx = colX[1] + (cols[1] - sw) / 2
+      const sy = curY + (tableRowH - sh) / 2
+      ctx.fillStyle = row.color
+      ctx.fillRect(sx, sy, sw, sh)
+      ctx.strokeStyle = "#bbb"; ctx.lineWidth = 0.5
+      ctx.strokeRect(sx, sy, sw, sh)
+      ctx.strokeStyle = "#000"; ctx.fillStyle = "#000"
+      drawCell(colX[2], curY, cols[2], tableRowH, row.length)
+      drawCell(colX[3], curY, cols[3], tableRowH, row.time)
+      curY += tableRowH
     })
 
-    // Убираем временный canvas, возвращаем img
-    if (tempCanvas && imgParent) {
-      imgParent.removeChild(tempCanvas)
-    }
-    if (imgEl) imgEl.style.display = ""
+    curY += 4 * s
 
-    return result
-  }
+    // ── РАЗРАБОТАЛ ──
+    ctx.font = `${fontSize(10)}px "Times New Roman"`
+    ctx.fillStyle = "#000"
+    const c1w = innerW * 0.35, c2w = innerW * 0.20, c3w = innerW * 0.45
+    // Должность
+    ctx.fillText(devRole, ML, curY + 12 * s)
+    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
+    ctx.beginPath(); ctx.moveTo(ML, curY + 16 * s); ctx.lineTo(ML + c1w * 0.85, curY + 16 * s); ctx.stroke()
+    // Подпись (пустая)
+    ctx.beginPath(); ctx.moveTo(ML + c1w, curY + 16 * s); ctx.lineTo(ML + c1w + c2w, curY + 16 * s); ctx.stroke()
+    // ФИО
+    ctx.fillText(devName, ML + c1w + c2w, curY + 12 * s)
+    ctx.beginPath(); ctx.moveTo(ML + c1w + c2w, curY + 16 * s); ctx.lineTo(ML + innerW, curY + 16 * s); ctx.stroke()
+
+    return cv
+  }, [
+    A3_W_PX, A3_H_PX, CONTENT_L, CONTENT_T, CONTENT_R, CONTENT_B,
+    agree, approve, titleLines, compositeUrl, compositeNatW, compositeNatH,
+    rows, devRole, devName,
+  ])
 
   // ── Экспорт PNG ──────────────────────────────────────────────────────────────
   const exportPNG = async () => {
-    if (!previewRef.current) return
     setExporting("png")
     try {
       const canvas = await renderDocumentCanvas()
@@ -368,14 +481,13 @@ export default function RouteMap() {
 
   // ── Экспорт PDF А3 ────────────────────────────────────────────────────────────
   const exportPDF = async () => {
-    if (!previewRef.current) return
     setExporting("pdf")
     try {
       const canvas = await renderDocumentCanvas()
-      const imgData = canvas.toDataURL("image/png")
+      const imgData = canvas.toDataURL("image/jpeg", 0.95)
       const pdfOrientation = orientation === "landscape" ? "landscape" : "portrait"
       const pdf = new jsPDF({ orientation: pdfOrientation, unit: "mm", format: "a3" })
-      pdf.addImage(imgData, "PNG", 0, 0, A3_W_MM, A3_H_MM)
+      pdf.addImage(imgData, "JPEG", 0, 0, A3_W_MM, A3_H_MM)
       pdf.save("Маршрутная_карта.pdf")
     } finally { setExporting(null) }
   }
