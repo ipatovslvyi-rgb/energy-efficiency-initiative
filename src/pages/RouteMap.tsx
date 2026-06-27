@@ -2,7 +2,6 @@ import { useRef, useState, useCallback, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { GrainOverlay } from "@/components/grain-overlay"
 import Icon from "@/components/ui/icon"
-import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
@@ -22,19 +21,16 @@ interface RouteRow {
 
 type DrawTool = "pen" | "eraser"
 type ActiveTab = "editor" | "preview"
+type Orientation = "portrait" | "landscape"
 
-// ── А3 размеры в пикселях при 96dpi (для экрана)
-// A3 книжная: 297×420mm. При экспорте используем 3x scale → ~150dpi print
-const A3_W_MM = 297
-const A3_H_MM = 420
+// ── А3 размеры в мм ───────────────────────────────────────────────────────────
+const A3_SHORT = 297
+const A3_LONG  = 420
 // Поля: лево 30мм, верх 20мм, право 10мм, низ 20мм
 const MARGIN = { left: 30, top: 20, right: 10, bottom: 20 }
 
 // Пикселей на мм при 96dpi
 const PX_PER_MM = 96 / 25.4  // ~3.78
-
-const A3_W_PX = Math.round(A3_W_MM * PX_PER_MM)
-const A3_H_PX = Math.round(A3_H_MM * PX_PER_MM)
 
 // ── Предустановленные цвета рисования ────────────────────────────────────────
 const DRAW_COLORS = [
@@ -47,6 +43,17 @@ export default function RouteMap() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<ActiveTab>("editor")
   const [exporting, setExporting] = useState<"pdf" | "png" | null>(null)
+  const [orientation, setOrientation] = useState<Orientation>("landscape")
+
+  // Размеры листа зависят от ориентации
+  const A3_W_MM = orientation === "landscape" ? A3_LONG  : A3_SHORT
+  const A3_H_MM = orientation === "landscape" ? A3_SHORT : A3_LONG
+  const A3_W_PX = Math.round(A3_W_MM * PX_PER_MM)
+  const A3_H_PX = Math.round(A3_H_MM * PX_PER_MM)
+  const CONTENT_L = Math.round(MARGIN.left   * PX_PER_MM)
+  const CONTENT_T = Math.round(MARGIN.top    * PX_PER_MM)
+  const CONTENT_R = Math.round(MARGIN.right  * PX_PER_MM)
+  const CONTENT_B = Math.round(MARGIN.bottom * PX_PER_MM)
 
   // Данные документа
   const [agree, setAgree] = useState<ApprovalBlock>({
@@ -68,14 +75,14 @@ export default function RouteMap() {
     "карьер",
     "на 2026 г.",
   ])
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  // Храним dataURL сразу при загрузке — избегаем проблем с blob URL при composite
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [rows, setRows] = useState<RouteRow[]>([
     { id: "1", color: "#FFFF00", length: "1,8", time: "2,0" },
     { id: "2", color: "#FF0000", length: "", time: "" },
   ])
   const [devRole, setDevRole] = useState("")
   const [devName, setDevName] = useState("")
-  const [devSignature] = useState("")
 
   // Canvas рисование
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -86,39 +93,47 @@ export default function RouteMap() {
   const [drawTool, setDrawTool] = useState<DrawTool>("pen")
   const [canvasNaturalW, setCanvasNaturalW] = useState(1200)
   const [canvasNaturalH, setCanvasNaturalH] = useState(800)
+
+  // Положение мыши для кружка-курсора
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
+  const [cursorVisible, setCursorVisible] = useState(false)
+
   const imgContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Ref предпросмотра А3 для экспорта
   const previewRef = useRef<HTMLDivElement>(null)
 
-  // Загрузка изображения
+  // Загрузка изображения — сохраняем как dataURL
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      setCanvasNaturalW(img.naturalWidth)
-      setCanvasNaturalH(img.naturalHeight)
-      setImageUrl(url)
-      // Сбросить canvas с задержкой (ждём рендер)
-      setTimeout(() => {
-        const cv = canvasRef.current; if (!cv) return
-        cv.width = img.naturalWidth
-        cv.height = img.naturalHeight
-        cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height)
-      }, 80)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string
+      const img = new Image()
+      img.onload = () => {
+        setCanvasNaturalW(img.naturalWidth)
+        setCanvasNaturalH(img.naturalHeight)
+        setImageDataUrl(dataUrl)
+        setTimeout(() => {
+          const cv = canvasRef.current; if (!cv) return
+          cv.width = img.naturalWidth
+          cv.height = img.naturalHeight
+          cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height)
+        }, 80)
+      }
+      img.src = dataUrl
     }
-    img.src = url
+    reader.readAsDataURL(file)
   }
 
   // Инициализация canvas при смене изображения
   useEffect(() => {
-    const cv = canvasRef.current; if (!cv || !imageUrl) return
+    const cv = canvasRef.current; if (!cv || !imageDataUrl) return
     cv.width = canvasNaturalW
     cv.height = canvasNaturalH
-  }, [imageUrl, canvasNaturalW, canvasNaturalH])
+  }, [imageDataUrl, canvasNaturalW, canvasNaturalH])
 
   const getPos = useCallback((e: React.MouseEvent | React.TouchEvent, cv: HTMLCanvasElement) => {
     const rect = cv.getBoundingClientRect()
@@ -137,6 +152,15 @@ export default function RouteMap() {
   }
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    // Обновляем позицию курсора для кружка
+    if ("clientX" in e) {
+      const container = imgContainerRef.current
+      if (container) {
+        const rect = container.getBoundingClientRect()
+        setCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+      }
+    }
+
     if (!isDrawing.current) return
     const cv = canvasRef.current; if (!cv) return
     const ctx = cv.getContext("2d"); if (!ctx) return
@@ -160,6 +184,15 @@ export default function RouteMap() {
     lastPos.current = pos
   }
 
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const container = imgContainerRef.current
+    if (container) {
+      const rect = container.getBoundingClientRect()
+      setCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+    }
+    draw(e)
+  }
+
   const stopDraw = () => { isDrawing.current = false; lastPos.current = null }
 
   const clearCanvas = () => {
@@ -171,22 +204,21 @@ export default function RouteMap() {
   const getCompositeImageUrl = useCallback((): Promise<string> => {
     return new Promise((resolve) => {
       const cv = canvasRef.current
-      if (!imageUrl) { resolve(""); return }
+      if (!imageDataUrl) { resolve(""); return }
 
       const img = new Image()
-      img.crossOrigin = "anonymous"
       img.onload = () => {
         const composite = document.createElement("canvas")
         composite.width = img.naturalWidth
         composite.height = img.naturalHeight
         const ctx = composite.getContext("2d")!
         ctx.drawImage(img, 0, 0)
-        if (cv) ctx.drawImage(cv, 0, 0)
+        if (cv && cv.width > 0) ctx.drawImage(cv, 0, 0)
         resolve(composite.toDataURL("image/png"))
       }
-      img.src = imageUrl
+      img.src = imageDataUrl
     })
-  }, [imageUrl])
+  }, [imageDataUrl])
 
   // Таблица
   const addRow = () => setRows(r => [...r, { id: Date.now().toString(), color: "#FF0000", length: "", time: "" }])
@@ -199,6 +231,8 @@ export default function RouteMap() {
     const el = previewRef.current; if (!el) return
     setExporting("png")
     try {
+      // Импортируем html2canvas динамически
+      const { default: html2canvas } = await import("html2canvas")
       await new Promise(r => setTimeout(r, 300))
       const canvas = await html2canvas(el, {
         scale: 3,
@@ -214,11 +248,12 @@ export default function RouteMap() {
     } finally { setExporting(null) }
   }
 
-  // ── Экспорт PDF А3 ───────────────────────────────────────────────────────────
+  // ── Экспорт PDF А3 — рисуем через canvas напрямую ────────────────────────────
   const exportPDF = async () => {
     const el = previewRef.current; if (!el) return
     setExporting("pdf")
     try {
+      const { default: html2canvas } = await import("html2canvas")
       await new Promise(r => setTimeout(r, 300))
       const canvas = await html2canvas(el, {
         scale: 3,
@@ -228,8 +263,9 @@ export default function RouteMap() {
         logging: false,
       })
       const imgData = canvas.toDataURL("image/png")
+      const pdfOrientation = orientation === "landscape" ? "landscape" : "portrait"
       const pdf = new jsPDF({
-        orientation: "portrait",
+        orientation: pdfOrientation,
         unit: "mm",
         format: "a3",
       })
@@ -246,12 +282,6 @@ export default function RouteMap() {
     }
   }, [activeTab, getCompositeImageUrl])
 
-  // Поля А3 в px (натуральный размер при 96dpi)
-  const CONTENT_L = Math.round(MARGIN.left * PX_PER_MM)
-  const CONTENT_T = Math.round(MARGIN.top * PX_PER_MM)
-  const CONTENT_R = Math.round(MARGIN.right * PX_PER_MM)
-  const CONTENT_B = Math.round(MARGIN.bottom * PX_PER_MM)
-
   // Масштабирование листа по ширине контейнера
   const previewWrapRef = useRef<HTMLDivElement>(null)
   const [previewScale, setPreviewScale] = useState(1)
@@ -261,14 +291,29 @@ export default function RouteMap() {
     const calcScale = () => {
       const wrap = previewWrapRef.current
       if (!wrap) return
-      const availW = wrap.clientWidth - 32 // 16px padding с каждой стороны
+      const availW = wrap.clientWidth - 32
       const scale = Math.min(1, availW / A3_W_PX)
       setPreviewScale(scale)
     }
     calcScale()
     window.addEventListener("resize", calcScale)
     return () => window.removeEventListener("resize", calcScale)
-  }, [activeTab])
+  }, [activeTab, A3_W_PX])
+
+  // Радиус кружка курсора в px (в координатах контейнера)
+  const getCursorRadiusPx = () => {
+    if (!canvasRef.current || !imgContainerRef.current) return drawTool === "eraser" ? drawSize * 4 : drawSize / 2
+    const cv = canvasRef.current
+    const container = imgContainerRef.current
+    const scaleX = container.clientWidth / cv.width
+    const brushPx = drawTool === "eraser" ? drawSize * 8 : drawSize
+    return (brushPx * scaleX) / 2
+  }
+
+  const orientLabel = orientation === "landscape" ? "Альбомная (А3)" : "Книжная (А3)"
+  const hintText = orientation === "landscape"
+    ? "Формат А3 альбомный (420×297мм) · Поля: лево 30мм, верх/низ 20мм, право 10мм"
+    : "Формат А3 книжный (297×420мм) · Поля: лево 30мм, верх/низ 20мм, право 10мм"
 
   return (
     <div className="relative min-h-screen text-foreground">
@@ -288,8 +333,16 @@ export default function RouteMap() {
           <span className="font-sans text-sm font-semibold">Маршрутная карта</span>
           <span className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Проф. служба</span>
         </div>
-        {/* Кнопки экспорта (только на вкладке предпросмотра) */}
         <div className="flex items-center gap-2">
+          {/* Переключатель ориентации */}
+          <button
+            onClick={() => setOrientation(o => o === "landscape" ? "portrait" : "landscape")}
+            title="Переключить ориентацию"
+            className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/60 hover:text-foreground transition-colors"
+          >
+            <Icon name={orientation === "landscape" ? "RectangleHorizontal" : "RectangleVertical"} size={13} />
+            <span className="hidden sm:inline">{orientLabel}</span>
+          </button>
           {activeTab === "preview" && (
             <>
               <button
@@ -331,7 +384,6 @@ export default function RouteMap() {
 
               {/* Согласовано / Утверждаю */}
               <div className="grid grid-cols-2 gap-6 mb-6">
-                {/* Согласовано */}
                 <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4">
                   <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest mb-3">Согласовано</p>
                   <div className="flex flex-col gap-2">
@@ -350,7 +402,6 @@ export default function RouteMap() {
                     ))}
                   </div>
                 </div>
-                {/* Утверждаю */}
                 <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4">
                   <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest mb-3">Утверждаю</p>
                   <div className="flex flex-col gap-2">
@@ -392,15 +443,14 @@ export default function RouteMap() {
                   <button onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/70 hover:text-foreground transition-colors">
                     <Icon name="ImagePlus" size={13} />
-                    {imageUrl ? "Заменить" : "Загрузить карту"}
+                    {imageDataUrl ? "Заменить" : "Загрузить карту"}
                   </button>
                   <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </div>
 
                 {/* Панель инструментов */}
-                {imageUrl && (
+                {imageDataUrl && (
                   <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-xl border border-foreground/10 bg-background/30">
-                    {/* Цвета */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {DRAW_COLORS.map(c => (
                         <button key={c} title={c}
@@ -415,7 +465,6 @@ export default function RouteMap() {
                       </label>
                     </div>
                     <div className="w-px h-5 bg-foreground/15" />
-                    {/* Толщина */}
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-foreground/40">Толщина</span>
                       <input type="range" min="2" max="30" value={drawSize} onChange={e => setDrawSize(+e.target.value)}
@@ -423,7 +472,6 @@ export default function RouteMap() {
                       <span className="text-[10px] text-foreground/60 w-5">{drawSize}</span>
                     </div>
                     <div className="w-px h-5 bg-foreground/15" />
-                    {/* Ластик */}
                     <button onClick={() => setDrawTool(t => t === "eraser" ? "pen" : "eraser")}
                       className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition-colors ${drawTool === "eraser" ? "border-orange-400/60 bg-orange-500/15 text-orange-400" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}>
                       <Icon name="Eraser" size={12} />Ластик
@@ -436,21 +484,52 @@ export default function RouteMap() {
                 )}
 
                 {/* Canvas область */}
-                <div ref={imgContainerRef} className="relative rounded-lg overflow-hidden border border-foreground/15 bg-foreground/5">
-                  {imageUrl ? (
+                <div
+                  ref={imgContainerRef}
+                  className="relative rounded-lg overflow-hidden border border-foreground/15 bg-foreground/5"
+                  onMouseEnter={() => setCursorVisible(true)}
+                  onMouseLeave={() => { setCursorVisible(false); stopDraw() }}
+                >
+                  {imageDataUrl ? (
                     <>
-                      <img src={imageUrl} alt="Карта" className="block w-full h-auto pointer-events-none select-none" draggable={false} />
+                      <img src={imageDataUrl} alt="Карта" className="block w-full h-auto pointer-events-none select-none" draggable={false} />
                       <canvas ref={canvasRef}
                         className="absolute inset-0 w-full h-full"
-                        style={{ cursor: drawTool === "eraser" ? "cell" : "crosshair", touchAction: "none" }}
-                        onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                        style={{ cursor: "none", touchAction: "none" }}
+                        onMouseDown={startDraw}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={stopDraw}
+                        onMouseLeave={stopDraw}
                         onTouchStart={e => { e.preventDefault(); startDraw(e) }}
                         onTouchMove={e => { e.preventDefault(); draw(e) }}
                         onTouchEnd={stopDraw}
                       />
+                      {/* Кружок-курсор */}
+                      {cursorVisible && cursorPos && (
+                        <div
+                          className="pointer-events-none absolute rounded-full"
+                          style={{
+                            left: cursorPos.x,
+                            top: cursorPos.y,
+                            width: getCursorRadiusPx() * 2,
+                            height: getCursorRadiusPx() * 2,
+                            transform: "translate(-50%, -50%)",
+                            border: drawTool === "eraser"
+                              ? "2px solid rgba(255,150,0,0.85)"
+                              : `2px solid ${drawColor === "#000000" ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.6)"}`,
+                            background: drawTool === "eraser"
+                              ? "rgba(255,150,0,0.08)"
+                              : drawColor + "33",
+                            boxShadow: drawTool === "eraser"
+                              ? "0 0 0 1px rgba(0,0,0,0.3)"
+                              : `0 0 0 1px ${drawColor}88`,
+                            zIndex: 10,
+                          }}
+                        />
+                      )}
                       <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-lg px-2 py-1 pointer-events-none">
                         {drawTool === "eraser"
-                          ? <span className="text-orange-300 text-[10px]">Ластик</span>
+                          ? <span className="text-orange-300 text-[10px]">Ластик · {drawSize * 8}px</span>
                           : (<><div className="w-3 h-3 rounded-full border border-white/40" style={{ background: drawColor }} /><span className="text-white/70 text-[10px]">{drawSize}px</span></>)
                         }
                       </div>
@@ -468,34 +547,30 @@ export default function RouteMap() {
               {/* Таблица маршрутов */}
               <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Маршрут профилактического обследования</p>
+                  <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Маршруты</p>
                   <button onClick={addRow}
-                    className="flex items-center gap-1 text-xs text-primary border border-primary/30 rounded-lg px-3 py-1.5 hover:bg-primary/10 transition-colors">
-                    <Icon name="Plus" size={13} />Добавить строку
+                    className="flex items-center gap-1 rounded-lg border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs text-foreground/60 hover:text-foreground transition-colors">
+                    <Icon name="Plus" size={12} />Добавить
                   </button>
                 </div>
-                <div className="rounded-lg overflow-hidden border border-foreground/15">
+                <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-foreground/8 border-b border-foreground/10">
-                        <th className="text-left px-3 py-2 text-[10px] font-mono text-foreground/50 uppercase tracking-wider w-10">№</th>
-                        <th className="text-left px-3 py-2 text-[10px] font-mono text-foreground/50 uppercase tracking-wider w-28">Цвет</th>
-                        <th className="text-left px-3 py-2 text-[10px] font-mono text-foreground/50 uppercase tracking-wider">Протяжённость (км.)</th>
-                        <th className="text-left px-3 py-2 text-[10px] font-mono text-foreground/50 uppercase tracking-wider">Время обследования (ч.)</th>
+                      <tr className="text-foreground/40 text-[11px] font-mono uppercase tracking-wider">
+                        <th className="text-left pb-2 pl-3 w-8">№</th>
+                        <th className="text-left pb-2 w-14">Цвет</th>
+                        <th className="text-left pb-2">Протяжённость (км)</th>
+                        <th className="text-left pb-2">Время (ч)</th>
                         <th className="w-8" />
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((row, idx) => (
-                        <tr key={row.id} className="border-b border-foreground/8 hover:bg-foreground/3">
-                          <td className="px-3 py-2 text-foreground/50 text-xs">{idx + 1}</td>
+                        <tr key={row.id} className="border-t border-foreground/10">
+                          <td className="px-3 py-2 text-foreground/50">{idx + 1}</td>
                           <td className="px-3 py-2">
-                            <label className="relative flex items-center gap-2 cursor-pointer">
-                              <div className="w-12 h-6 rounded border-2 border-foreground/20 hover:border-foreground/40 transition-colors" style={{ background: row.color }} />
-                              <span className="font-mono text-[9px] text-foreground/40">{row.color.toUpperCase()}</span>
-                              <input type="color" value={row.color} onChange={e => updateRow(row.id, "color", e.target.value)}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-12" />
-                            </label>
+                            <input type="color" value={row.color} onChange={e => updateRow(row.id, "color", e.target.value)}
+                              className="w-10 h-7 rounded cursor-pointer border-0 bg-transparent" />
                           </td>
                           <td className="px-3 py-2">
                             <input value={row.length} onChange={e => updateRow(row.id, "length", e.target.value)} placeholder="0,0"
@@ -561,7 +636,7 @@ export default function RouteMap() {
               marginLeft: "auto",
               marginRight: "auto",
             }}>
-            {/* Лист А3 книжный — flex колонка, таблица и подпись внизу */}
+            {/* Лист А3 */}
             <div
               ref={previewRef}
               className="bg-white shadow-2xl"
@@ -581,7 +656,7 @@ export default function RouteMap() {
                 flexDirection: "column",
               }}
             >
-              {/* Рамка — имитация штампа */}
+              {/* Рамка */}
               <div style={{
                 position: "absolute",
                 left: CONTENT_L - 2, top: CONTENT_T - 2,
@@ -592,7 +667,6 @@ export default function RouteMap() {
 
               {/* Строка СОГЛАСОВАНО / УТВЕРЖДАЮ */}
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, flexShrink: 0 }}>
-                {/* Согласовано */}
                 <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5 }}>
                   <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>СОГЛАСОВАНО</div>
                   <div>{agree.role}</div>
@@ -601,7 +675,6 @@ export default function RouteMap() {
                   <div style={{ borderBottom: "1px solid #555", width: "80%", marginBottom: 1 }} />
                   <div>{agree.date}</div>
                 </div>
-                {/* Утверждаю */}
                 <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5, textAlign: "right" }}>
                   <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>УТВЕРЖДАЮ</div>
                   <div>{approve.role}</div>
@@ -619,7 +692,7 @@ export default function RouteMap() {
                 ))}
               </div>
 
-              {/* Картинка с рисунком — занимает всё свободное место */}
+              {/* Картинка — занимает всё свободное место */}
               <div style={{ flex: 1, border: "1px solid #999", marginBottom: 6, lineHeight: 0, overflow: "hidden", minHeight: 0 }}>
                 {compositeUrl ? (
                   <img src={compositeUrl} alt="Схема маршрута"
@@ -631,7 +704,7 @@ export default function RouteMap() {
                 )}
               </div>
 
-              {/* Таблица маршрутов — прибита к низу, растёт при добавлении строк */}
+              {/* Таблица маршрутов */}
               <div style={{ flexShrink: 0, marginBottom: 6 }}>
                 <table style={{ width: "60%", margin: "0 auto", borderCollapse: "collapse", fontSize: 10 }}>
                   <thead>
@@ -662,17 +735,14 @@ export default function RouteMap() {
                 </table>
               </div>
 
-              {/* Разработал — прибит к низу, три колонки */}
+              {/* Разработал — три колонки */}
               <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 0, fontSize: 10, marginBottom: 8 }}>
-                {/* Должность */}
                 <div style={{ flex: "0 0 38%", paddingRight: 8 }}>
                   <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>{devRole}</div>
                 </div>
-                {/* Подпись */}
                 <div style={{ flex: "0 0 22%", paddingRight: 8 }}>
                   <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>&nbsp;</div>
                 </div>
-                {/* ФИО */}
                 <div style={{ flex: "0 0 40%" }}>
                   <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>{devName}</div>
                 </div>
@@ -681,10 +751,7 @@ export default function RouteMap() {
 
             </div>{/* конец обёртки масштабирования */}
 
-            {/* Подсказка под листом */}
-            <p className="text-center text-foreground/30 text-xs mt-4">
-              Формат А3 книжный (297×420мм) · Поля: лево 30мм, верх/низ 20мм, право 10мм
-            </p>
+            <p className="text-center text-foreground/30 text-xs mt-4">{hintText}</p>
           </div>
         )}
       </div>
