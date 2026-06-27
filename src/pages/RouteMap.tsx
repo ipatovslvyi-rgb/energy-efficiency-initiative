@@ -93,6 +93,8 @@ export default function RouteMap() {
   const [drawTool, setDrawTool] = useState<DrawTool>("pen")
   const [canvasNaturalW, setCanvasNaturalW] = useState(1200)
   const [canvasNaturalH, setCanvasNaturalH] = useState(800)
+  // Снимок canvas после каждого мазка — чтобы composite не терял рисунок
+  const [canvasSnapshot, setCanvasSnapshot] = useState<string | null>(null)
 
   // Положение мыши для кружка-курсора
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
@@ -184,6 +186,12 @@ export default function RouteMap() {
     lastPos.current = pos
   }
 
+  // Сохраняем снимок canvas после окончания мазка
+  const saveSnapshot = () => {
+    const cv = canvasRef.current; if (!cv) return
+    setCanvasSnapshot(cv.toDataURL("image/png"))
+  }
+
   const handleMouseMove = (e: React.MouseEvent) => {
     const container = imgContainerRef.current
     if (container) {
@@ -193,17 +201,21 @@ export default function RouteMap() {
     draw(e)
   }
 
-  const stopDraw = () => { isDrawing.current = false; lastPos.current = null }
+  const stopDraw = () => {
+    if (isDrawing.current) saveSnapshot()
+    isDrawing.current = false
+    lastPos.current = null
+  }
 
   const clearCanvas = () => {
     const cv = canvasRef.current; if (!cv) return
     cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height)
+    setCanvasSnapshot(null)
   }
 
   // Получить итоговое изображение (фото + рисунок поверх) как dataURL
   const getCompositeImageUrl = useCallback((): Promise<string> => {
     return new Promise((resolve) => {
-      const cv = canvasRef.current
       if (!imageDataUrl) { resolve(""); return }
 
       const img = new Image()
@@ -213,12 +225,20 @@ export default function RouteMap() {
         composite.height = img.naturalHeight
         const ctx = composite.getContext("2d")!
         ctx.drawImage(img, 0, 0)
-        if (cv && cv.width > 0) ctx.drawImage(cv, 0, 0)
-        resolve(composite.toDataURL("image/png"))
+        if (canvasSnapshot) {
+          const overlay = new Image()
+          overlay.onload = () => {
+            ctx.drawImage(overlay, 0, 0)
+            resolve(composite.toDataURL("image/png"))
+          }
+          overlay.src = canvasSnapshot
+        } else {
+          resolve(composite.toDataURL("image/png"))
+        }
       }
       img.src = imageDataUrl
     })
-  }, [imageDataUrl])
+  }, [imageDataUrl, canvasSnapshot])
 
   // Таблица
   const addRow = () => setRows(r => [...r, { id: Date.now().toString(), color: "#FF0000", length: "", time: "" }])
