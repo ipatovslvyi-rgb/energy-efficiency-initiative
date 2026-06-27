@@ -334,11 +334,22 @@ export default function RouteMap() {
     } finally { setExporting(null) }
   }
 
-  // Составное изображение для предпросмотра
+  // Составное изображение для предпросмотра + натуральные размеры для правильных пропорций
   const [compositeUrl, setCompositeUrl] = useState<string | null>(null)
+  const [compositeNatW, setCompositeNatW] = useState(0)
+  const [compositeNatH, setCompositeNatH] = useState(0)
   useEffect(() => {
     if (activeTab === "preview") {
-      getCompositeImageUrl().then(url => setCompositeUrl(url || null))
+      getCompositeImageUrl().then(url => {
+        if (!url) { setCompositeUrl(null); return }
+        setCompositeUrl(url)
+        const img = new Image()
+        img.onload = () => {
+          setCompositeNatW(img.naturalWidth)
+          setCompositeNatH(img.naturalHeight)
+        }
+        img.src = url
+      })
     }
   }, [activeTab, getCompositeImageUrl])
 
@@ -734,7 +745,7 @@ export default function RouteMap() {
                   <div>{agree.role}</div>
                   <div>{agree.org}</div>
                   <div>{agree.name}</div>
-                  <div style={{ borderBottom: "1px solid #555", width: "80%", marginBottom: 1 }} />
+                  <div style={{ borderTop: "0.5px solid #555", width: "80%", marginTop: 2, marginBottom: 1 }} />
                   <div>{agree.date}</div>
                 </div>
                 <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5, textAlign: "right" }}>
@@ -742,7 +753,7 @@ export default function RouteMap() {
                   <div>{approve.role}</div>
                   <div>{approve.org}</div>
                   <div>{approve.name}</div>
-                  <div style={{ borderBottom: "1px solid #555", width: "80%", marginBottom: 1, marginLeft: "auto" }} />
+                  <div style={{ borderTop: "0.5px solid #555", width: "80%", marginTop: 2, marginBottom: 1, marginLeft: "auto" }} />
                   <div>{approve.date}</div>
                 </div>
               </div>
@@ -754,12 +765,28 @@ export default function RouteMap() {
                 ))}
               </div>
 
-              {/* Картинка — занимает всё свободное место */}
-              <div style={{ flex: 1, border: "1px solid #999", marginBottom: 6, lineHeight: 0, overflow: "hidden", minHeight: 0 }}>
-                {compositeUrl ? (
-                  <img src={compositeUrl} alt="Схема маршрута"
-                    style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
-                ) : (
+              {/* Картинка — занимает всё свободное место, пропорции сохраняются вручную */}
+              <div style={{ flex: 1, border: "1px solid #999", marginBottom: 6, overflow: "hidden", minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}>
+                {compositeUrl ? (() => {
+                  // Вычисляем размеры с сохранением пропорций (letterbox внутри контейнера)
+                  // Контейнер = ширина листа минус поля, высота = flex 1 (неизвестна до рендера)
+                  // Используем width:100%, height:auto — изображение не растягивается по высоте
+                  const ratio = compositeNatH > 0 ? compositeNatW / compositeNatH : 4 / 3
+                  return (
+                    <img
+                      src={compositeUrl}
+                      alt="Схема маршрута"
+                      style={{
+                        display: "block",
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        width: ratio >= 1 ? "100%" : "auto",
+                        height: ratio >= 1 ? "auto" : "100%",
+                        objectFit: "unset",
+                      }}
+                    />
+                  )
+                })() : (
                   <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa", fontSize: 12 }}>
                     Карта не загружена
                   </div>
