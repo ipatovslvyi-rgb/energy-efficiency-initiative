@@ -38,6 +38,13 @@ const DRAW_COLORS = [
   "#FF8800", "#FF00FF", "#FFFFFF", "#000000",
 ]
 
+// Цикличная палитра для автоназначения при добавлении новых строк
+const AUTO_COLORS = [
+  "#FFFF00", "#FF0000", "#00CC00", "#00BFFF",
+  "#FF8800", "#FF00FF", "#000000", "#FF69B4",
+  "#8A2BE2", "#00CED1", "#DC143C", "#228B22",
+]
+
 // ── Основная страница ─────────────────────────────────────────────────────────
 export default function RouteMap() {
   const navigate = useNavigate()
@@ -83,6 +90,8 @@ export default function RouteMap() {
   ])
   const [devRole, setDevRole] = useState("")
   const [devName, setDevName] = useState("")
+  // ID строки, цвет которой синхронизирован с карандашом
+  const [activeRowId, setActiveRowId] = useState<string | null>("1")
 
   // Canvas рисование
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -240,11 +249,42 @@ export default function RouteMap() {
     })
   }, [imageDataUrl, canvasSnapshot])
 
-  // Таблица
-  const addRow = () => setRows(r => [...r, { id: Date.now().toString(), color: "#FF0000", length: "", time: "" }])
+  // Таблица — при добавлении строки берём следующий цвет из палитры и синхронизируем карандаш
+  const addRow = () => {
+    setRows(r => {
+      const nextColor = AUTO_COLORS[r.length % AUTO_COLORS.length]
+      const newId = Date.now().toString()
+      setDrawColor(nextColor)
+      setDrawTool("pen")
+      setActiveRowId(newId)
+      return [...r, { id: newId, color: nextColor, length: "", time: "" }]
+    })
+  }
   const removeRow = (id: string) => setRows(r => r.filter(x => x.id !== id))
-  const updateRow = (id: string, field: keyof RouteRow, val: string) =>
+  const updateRow = (id: string, field: keyof RouteRow, val: string) => {
     setRows(r => r.map(x => x.id === id ? { ...x, [field]: val } : x))
+    if (field === "color") {
+      setDrawColor(val)
+      setDrawTool("pen")
+      setActiveRowId(id)
+    }
+  }
+  // Выбрать строку (переключить карандаш на её цвет)
+  const selectRow = (id: string) => {
+    const row = rows.find(r => r.id === id)
+    if (!row) return
+    setDrawColor(row.color)
+    setDrawTool("pen")
+    setActiveRowId(id)
+  }
+  // При выборе цвета в палитре карандаша — обновляем активную строку таблицы
+  const pickColor = (color: string) => {
+    setDrawColor(color)
+    setDrawTool("pen")
+    if (activeRowId) {
+      setRows(r => r.map(x => x.id === activeRowId ? { ...x, color } : x))
+    }
+  }
 
   // ── Экспорт PNG ──────────────────────────────────────────────────────────────
   const exportPNG = async () => {
@@ -474,13 +514,13 @@ export default function RouteMap() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {DRAW_COLORS.map(c => (
                         <button key={c} title={c}
-                          onClick={() => { setDrawColor(c); setDrawTool("pen") }}
+                          onClick={() => pickColor(c)}
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${drawColor === c && drawTool === "pen" ? "border-white scale-110" : "border-transparent"}`}
                           style={{ background: c, boxShadow: c === "#FFFFFF" ? "inset 0 0 0 1px rgba(0,0,0,0.2)" : undefined }} />
                       ))}
                       <label title="Свой цвет" className="relative w-6 h-6 rounded-full border-2 border-dashed border-foreground/30 overflow-hidden cursor-pointer hover:border-foreground/60 transition-colors flex items-center justify-center">
                         <Icon name="Palette" size={12} className="text-foreground/50" />
-                        <input type="color" value={drawColor} onChange={e => { setDrawColor(e.target.value); setDrawTool("pen") }}
+                        <input type="color" value={drawColor} onChange={e => pickColor(e.target.value)}
                           className="absolute inset-0 opacity-0 cursor-pointer" />
                       </label>
                     </div>
@@ -586,9 +626,11 @@ export default function RouteMap() {
                     </thead>
                     <tbody>
                       {rows.map((row, idx) => (
-                        <tr key={row.id} className="border-t border-foreground/10">
+                        <tr key={row.id}
+                          onClick={() => selectRow(row.id)}
+                          className={`border-t border-foreground/10 cursor-pointer transition-colors ${activeRowId === row.id ? "bg-foreground/10" : "hover:bg-foreground/5"}`}>
                           <td className="px-3 py-2 text-foreground/50">{idx + 1}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <input type="color" value={row.color} onChange={e => updateRow(row.id, "color", e.target.value)}
                               className="w-10 h-7 rounded cursor-pointer border-0 bg-transparent" />
                           </td>
@@ -729,42 +771,48 @@ export default function RouteMap() {
                 <table style={{ width: "60%", margin: "0 auto", borderCollapse: "collapse", fontSize: 10 }}>
                   <thead>
                     <tr>
-                      <td colSpan={4} style={{ textAlign: "center", border: "1px solid #000", padding: "2px 4px", fontWeight: "normal" }}>
+                      <td colSpan={4} style={{ textAlign: "center", border: "0.5px solid #000", padding: "2px 4px", fontWeight: "normal" }}>
                         Маршрут профилактического обследования
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ border: "1px solid #000", padding: "2px 6px", width: 24, textAlign: "center" }}>№</td>
-                      <td style={{ border: "1px solid #000", padding: "2px 6px", width: 60, textAlign: "center" }}>Цвет</td>
-                      <td style={{ border: "1px solid #000", padding: "2px 6px", textAlign: "center" }}>Протяжённость маршрута (км.)</td>
-                      <td style={{ border: "1px solid #000", padding: "2px 6px", textAlign: "center" }}>Время обследования (ч.)</td>
+                      <td style={{ border: "0.5px solid #000", padding: "2px 6px", width: 24, textAlign: "center" }}>№</td>
+                      <td style={{ border: "0.5px solid #000", padding: "2px 6px", width: 60, textAlign: "center" }}>Цвет</td>
+                      <td style={{ border: "0.5px solid #000", padding: "2px 6px", textAlign: "center" }}>Протяжённость маршрута (км.)</td>
+                      <td style={{ border: "0.5px solid #000", padding: "2px 6px", textAlign: "center" }}>Время обследования (ч.)</td>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((row, idx) => (
                       <tr key={row.id}>
-                        <td style={{ border: "1px solid #000", padding: "2px 6px", textAlign: "center" }}>{idx + 1}</td>
-                        <td style={{ border: "1px solid #000", padding: "2px 6px", textAlign: "center" }}>
-                          <div style={{ width: 40, height: 12, background: row.color, margin: "0 auto", border: "1px solid #ccc" }} />
+                        <td style={{ border: "0.5px solid #000", padding: "2px 6px", textAlign: "center" }}>{idx + 1}</td>
+                        <td style={{ border: "0.5px solid #000", padding: "2px 6px", textAlign: "center" }}>
+                          <div style={{ width: 36, height: 10, background: row.color, margin: "0 auto", border: "0.5px solid #bbb" }} />
                         </td>
-                        <td style={{ border: "1px solid #000", padding: "2px 6px", textAlign: "center" }}>{row.length}</td>
-                        <td style={{ border: "1px solid #000", padding: "2px 6px", textAlign: "center" }}>{row.time}</td>
+                        <td style={{ border: "0.5px solid #000", padding: "2px 6px", textAlign: "center" }}>{row.length}</td>
+                        <td style={{ border: "0.5px solid #000", padding: "2px 6px", textAlign: "center" }}>{row.time}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* Разработал — три колонки */}
+              {/* Разработал — три колонки; линия ПОД текстом, не перечёркивает */}
               <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 0, fontSize: 10, marginBottom: 8 }}>
-                <div style={{ flex: "0 0 38%", paddingRight: 8 }}>
-                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>{devRole}</div>
+                {/* Должность */}
+                <div style={{ flex: "0 0 35%", paddingRight: 12 }}>
+                  <div style={{ lineHeight: 1.4, minHeight: 14, paddingBottom: 1 }}>{devRole}</div>
+                  <div style={{ borderTop: "0.5px solid #555", marginTop: 1, width: "85%" }} />
                 </div>
-                <div style={{ flex: "0 0 22%", paddingRight: 8 }}>
-                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>&nbsp;</div>
+                {/* Подпись (пустая линия) */}
+                <div style={{ flex: "0 0 20%", paddingRight: 12 }}>
+                  <div style={{ lineHeight: 1.4, minHeight: 14 }}>&nbsp;</div>
+                  <div style={{ borderTop: "0.5px solid #555", marginTop: 1 }} />
                 </div>
-                <div style={{ flex: "0 0 40%" }}>
-                  <div style={{ borderBottom: "1px solid #555", paddingBottom: 2, minHeight: 16 }}>{devName}</div>
+                {/* ФИО */}
+                <div style={{ flex: "0 0 45%" }}>
+                  <div style={{ lineHeight: 1.4, minHeight: 14, paddingBottom: 1 }}>{devName}</div>
+                  <div style={{ borderTop: "0.5px solid #555", marginTop: 1 }} />
                 </div>
               </div>
             </div>
