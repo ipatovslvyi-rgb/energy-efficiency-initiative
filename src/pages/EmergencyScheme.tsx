@@ -1152,8 +1152,6 @@ export default function EmergencyScheme() {
                       <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-4">Подписи</p>
                       <div className="flex flex-col gap-3">
                         <Field label="Руководитель горноспасательных работ" value={form.headRescue} onChange={set("headRescue")} placeholder="Фамилия И.О." />
-                        <Field label="Помощник командира отряда" value={form.assistantCommander} onChange={set("assistantCommander")} placeholder="Фамилия И.О." />
-                        <Field label="Командир (в скобках)" value={form.commanderName} onChange={set("commanderName")} placeholder="И.И. Иванов" />
                       </div>
                     </div>
                   </div>
@@ -1477,9 +1475,8 @@ export default function EmergencyScheme() {
                   </div>
 
                   {/* Подписи */}
-                  <div className="flex justify-between bg-white px-4 py-1.5" style={{ fontSize: 10, borderTop: "1px solid #ccc" }}>
-                    <span className="font-bold">Руководитель ГСР:&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 100 }}>{form.headRescue}</span></span>
-                    <span>Пом. командира отряда&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 80 }}>{form.assistantCommander}</span>&nbsp;/{form.commanderName}/</span>
+                  <div className="bg-white px-4 py-1.5" style={{ fontSize: 10, borderTop: "1px solid #ccc" }}>
+                    <span className="font-bold">Руководитель горноспасательных работ:&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 150 }}>{form.headRescue}</span></span>
                   </div>
                   </div>
                 </div>
