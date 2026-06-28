@@ -286,6 +286,25 @@ export default function RouteMap() {
     }
   }
 
+  // Составное изображение для предпросмотра + натуральные размеры для правильных пропорций
+  const [compositeUrl, setCompositeUrl] = useState<string | null>(null)
+  const [compositeNatW, setCompositeNatW] = useState(0)
+  const [compositeNatH, setCompositeNatH] = useState(0)
+  useEffect(() => {
+    if (activeTab === "preview") {
+      getCompositeImageUrl().then(url => {
+        if (!url) { setCompositeUrl(null); return }
+        setCompositeUrl(url)
+        const img = new Image()
+        img.onload = () => {
+          setCompositeNatW(img.naturalWidth)
+          setCompositeNatH(img.naturalHeight)
+        }
+        img.src = url
+      })
+    }
+  }, [activeTab, getCompositeImageUrl])
+
   // ── Рендер документа напрямую через Canvas API (без html2canvas) ─────────────
   const renderDocumentCanvas = useCallback(async (): Promise<HTMLCanvasElement> => {
     const SCALE = 3
@@ -298,43 +317,34 @@ export default function RouteMap() {
     const MR = CONTENT_R * s
     const MB = CONTENT_B * s
     const innerW = W - ML - MR
-    const innerH = H - MT - MB
 
     const cv = document.createElement("canvas")
     cv.width = W
     cv.height = H
     const ctx = cv.getContext("2d")!
 
-    // Фон
     ctx.fillStyle = "#ffffff"
     ctx.fillRect(0, 0, W, H)
-
-    // Рамка
     ctx.strokeStyle = "#000"
     ctx.lineWidth = 1
-    ctx.strokeRect(ML - 2, MT - 2, innerW + 4, innerH + 4)
+    ctx.strokeRect(ML - 2, MT - 2, innerW + 4, (H - MT - MB) + 4)
 
     let curY = MT
     const fontSize = (n: number) => n * s
+
     // ── СОГЛАСОВАНО / УТВЕРЖДАЮ ──
     const headerH = 80 * s
+    ctx.textBaseline = "top"
     ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
     ctx.fillStyle = "#000"
-    ctx.textBaseline = "top"
     ctx.fillText("СОГЛАСОВАНО", ML, curY)
-
-    const agreeLines = [agree.role, agree.org, agree.name]
     ctx.font = `${fontSize(10)}px "Times New Roman"`
+    const agreeLines = [agree.role, agree.org, agree.name]
     agreeLines.forEach((t, i) => ctx.fillText(t, ML, curY + (i + 1) * 14 * s))
-    // линия под именем
     ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
-    ctx.beginPath()
-    ctx.moveTo(ML, curY + 4 * 14 * s)
-    ctx.lineTo(ML + innerW * 0.38, curY + 4 * 14 * s)
-    ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(ML, curY + 4 * 14 * s); ctx.lineTo(ML + innerW * 0.38, curY + 4 * 14 * s); ctx.stroke()
     ctx.fillText(agree.date, ML, curY + (4 * 14 + 2) * s)
 
-    // УТВЕРЖДАЮ — правый блок
     ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
     ctx.textAlign = "right"
     ctx.fillText("УТВЕРЖДАЮ", ML + innerW, curY)
@@ -342,36 +352,26 @@ export default function RouteMap() {
     const appLines = [approve.role, approve.org, approve.name]
     appLines.forEach((t, i) => ctx.fillText(t, ML + innerW, curY + (i + 1) * 14 * s))
     ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
-    ctx.beginPath()
-    ctx.moveTo(ML + innerW - innerW * 0.38, curY + 4 * 14 * s)
-    ctx.lineTo(ML + innerW, curY + 4 * 14 * s)
-    ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(ML + innerW - innerW * 0.38, curY + 4 * 14 * s); ctx.lineTo(ML + innerW, curY + 4 * 14 * s); ctx.stroke()
     ctx.fillText(approve.date, ML + innerW, curY + (4 * 14 + 2) * s)
     ctx.textAlign = "left"
-
     curY += headerH
 
     // ── ЗАГОЛОВОК ──
     titleLines.forEach((line, i) => {
       if (!line) return
-      ctx.font = i === 0
-        ? `bold ${fontSize(12)}px "Times New Roman"`
-        : `${fontSize(11)}px "Times New Roman"`
-      ctx.fillStyle = "#000"
-      ctx.textAlign = "center"
+      ctx.font = i === 0 ? `bold ${fontSize(12)}px "Times New Roman"` : `${fontSize(11)}px "Times New Roman"`
+      ctx.fillStyle = "#000"; ctx.textAlign = "center"
       ctx.fillText(line, ML + innerW / 2, curY + i * 14 * s)
     })
     ctx.textAlign = "left"
-    const titleH = titleLines.length * 14 * s + 4 * s
-    curY += titleH + 4 * s
+    curY += titleLines.length * 14 * s + 8 * s
 
     // ── КАРТИНКА ──
-    // Оставляем место для таблицы и подписи внизу
     const tableRowH = 14 * s
-    const tableRows = rows.length
-    const tableH = (3 + tableRows) * tableRowH + 6 * s // header+subheader+rows+gap
-    const signH = 22 * s
-    const imgAreaH = H - curY - MB - tableH - signH - 6 * s
+    const tableH = (3 + rows.length) * tableRowH + 6 * s
+    const signH = 26 * s
+    const imgAreaH = H - curY - MB - tableH - signH - 8 * s
 
     ctx.strokeStyle = "#999"; ctx.lineWidth = 1
     ctx.strokeRect(ML, curY, innerW, imgAreaH)
@@ -379,7 +379,6 @@ export default function RouteMap() {
     if (compositeUrl && compositeNatW > 0) {
       const natImg = new Image()
       await new Promise<void>(res => { natImg.onload = () => res(); natImg.src = compositeUrl })
-      // contain
       const ir = compositeNatW / compositeNatH
       const br = innerW / imgAreaH
       let dw: number, dh: number, dx: number, dy: number
@@ -387,13 +386,10 @@ export default function RouteMap() {
       else { dh = imgAreaH; dw = imgAreaH * ir; dx = (innerW - dw) / 2; dy = 0 }
       ctx.drawImage(natImg, ML + dx, curY + dy, dw, dh)
     } else {
-      ctx.fillStyle = "#aaa"
-      ctx.font = `${fontSize(11)}px "Times New Roman"`
-      ctx.textAlign = "center"
+      ctx.fillStyle = "#aaa"; ctx.font = `${fontSize(11)}px "Times New Roman"`; ctx.textAlign = "center"
       ctx.fillText("Карта не загружена", ML + innerW / 2, curY + imgAreaH / 2)
       ctx.textAlign = "left"
     }
-
     curY += imgAreaH + 6 * s
 
     // ── ТАБЛИЦА ──
@@ -401,62 +397,40 @@ export default function RouteMap() {
     const tableX = ML + (innerW - tableW) / 2
     const cols = [tableW * 0.07, tableW * 0.12, tableW * 0.46, tableW * 0.35]
     const colX = [tableX, tableX + cols[0], tableX + cols[0] + cols[1], tableX + cols[0] + cols[1] + cols[2]]
-
     ctx.strokeStyle = "#000"; ctx.lineWidth = 0.5
-    ctx.font = `${fontSize(9)}px "Times New Roman"`
-    ctx.fillStyle = "#000"
+    ctx.font = `${fontSize(9)}px "Times New Roman"`; ctx.fillStyle = "#000"
 
-    // Заголовок таблицы (2 строки шапки + строки данных)
     const drawCell = (x: number, y: number, w: number, h: number, text: string, align: "left"|"center"|"right" = "center") => {
-      ctx.strokeRect(x, y, w, h)
-      ctx.textAlign = align
+      ctx.strokeRect(x, y, w, h); ctx.textAlign = align
       const tx = align === "center" ? x + w / 2 : align === "right" ? x + w - 3 * s : x + 3 * s
-      ctx.fillText(text, tx, y + h / 2 - 4 * s, w - 4 * s)
-      ctx.textAlign = "left"
+      ctx.fillText(text, tx, y + h / 2 - 4 * s, w - 4 * s); ctx.textAlign = "left"
     }
 
-    // Строка «Маршрут профилактического обследования»
-    drawCell(tableX, curY, tableW, tableRowH, "Маршрут профилактического обследования")
-    curY += tableRowH
-
-    // Шапка колонок
+    drawCell(tableX, curY, tableW, tableRowH, "Маршрут профилактического обследования"); curY += tableRowH
     drawCell(colX[0], curY, cols[0], tableRowH, "№")
     drawCell(colX[1], curY, cols[1], tableRowH, "Цвет")
     drawCell(colX[2], curY, cols[2], tableRowH, "Протяжённость маршрута (км.)")
-    drawCell(colX[3], curY, cols[3], tableRowH, "Время обследования (ч.)")
-    curY += tableRowH
+    drawCell(colX[3], curY, cols[3], tableRowH, "Время обследования (ч.)"); curY += tableRowH
 
-    // Строки данных
     rows.forEach((row, idx) => {
       drawCell(colX[0], curY, cols[0], tableRowH, String(idx + 1))
-      // цвет
       ctx.strokeRect(colX[1], curY, cols[1], tableRowH)
-      const sw = 28 * s, sh = 8 * s
-      const sx = colX[1] + (cols[1] - sw) / 2
-      const sy = curY + (tableRowH - sh) / 2
-      ctx.fillStyle = row.color
-      ctx.fillRect(sx, sy, sw, sh)
-      ctx.strokeStyle = "#bbb"; ctx.lineWidth = 0.5
-      ctx.strokeRect(sx, sy, sw, sh)
+      const sw = 28 * s, sh = 8 * s, sx = colX[1] + (cols[1] - sw) / 2, sy = curY + (tableRowH - sh) / 2
+      ctx.fillStyle = row.color; ctx.fillRect(sx, sy, sw, sh)
+      ctx.strokeStyle = "#bbb"; ctx.lineWidth = 0.5; ctx.strokeRect(sx, sy, sw, sh)
       ctx.strokeStyle = "#000"; ctx.fillStyle = "#000"
       drawCell(colX[2], curY, cols[2], tableRowH, row.length)
-      drawCell(colX[3], curY, cols[3], tableRowH, row.time)
-      curY += tableRowH
+      drawCell(colX[3], curY, cols[3], tableRowH, row.time); curY += tableRowH
     })
-
     curY += 4 * s
 
     // ── РАЗРАБОТАЛ ──
-    ctx.font = `${fontSize(10)}px "Times New Roman"`
-    ctx.fillStyle = "#000"
-    const c1w = innerW * 0.35, c2w = innerW * 0.20, c3w = innerW * 0.45
-    // Должность
+    ctx.font = `${fontSize(10)}px "Times New Roman"`; ctx.fillStyle = "#000"
+    const c1w = innerW * 0.35, c2w = innerW * 0.20
     ctx.fillText(devRole, ML, curY + 12 * s)
     ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
     ctx.beginPath(); ctx.moveTo(ML, curY + 16 * s); ctx.lineTo(ML + c1w * 0.85, curY + 16 * s); ctx.stroke()
-    // Подпись (пустая)
     ctx.beginPath(); ctx.moveTo(ML + c1w, curY + 16 * s); ctx.lineTo(ML + c1w + c2w, curY + 16 * s); ctx.stroke()
-    // ФИО
     ctx.fillText(devName, ML + c1w + c2w, curY + 12 * s)
     ctx.beginPath(); ctx.moveTo(ML + c1w + c2w, curY + 16 * s); ctx.lineTo(ML + innerW, curY + 16 * s); ctx.stroke()
 
@@ -491,25 +465,6 @@ export default function RouteMap() {
       pdf.save("Маршрутная_карта.pdf")
     } finally { setExporting(null) }
   }
-
-  // Составное изображение для предпросмотра + натуральные размеры для правильных пропорций
-  const [compositeUrl, setCompositeUrl] = useState<string | null>(null)
-  const [compositeNatW, setCompositeNatW] = useState(0)
-  const [compositeNatH, setCompositeNatH] = useState(0)
-  useEffect(() => {
-    if (activeTab === "preview") {
-      getCompositeImageUrl().then(url => {
-        if (!url) { setCompositeUrl(null); return }
-        setCompositeUrl(url)
-        const img = new Image()
-        img.onload = () => {
-          setCompositeNatW(img.naturalWidth)
-          setCompositeNatH(img.naturalHeight)
-        }
-        img.src = url
-      })
-    }
-  }, [activeTab, getCompositeImageUrl])
 
   // Масштабирование листа по ширине контейнера
   const previewWrapRef = useRef<HTMLDivElement>(null)
