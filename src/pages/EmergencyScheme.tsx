@@ -333,6 +333,32 @@ function GasField({ label, value, onChange }: { label: string; value: string; on
   )
 }
 
+function SideField({ label, value, onChange, placeholder = "" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="text-[9px] text-foreground/40 uppercase tracking-wider leading-tight">{label}</label>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className="bg-foreground/5 border border-foreground/15 rounded px-1.5 py-1 text-xs text-foreground placeholder:text-foreground/25 focus:outline-none focus:border-primary/60 transition-colors" />
+    </div>
+  )
+}
+
+function SideSection({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border-b border-foreground/10">
+      <button
+        className="w-full flex items-center justify-between px-3 py-2 text-[9px] font-mono font-semibold uppercase tracking-widest text-foreground/40 hover:text-foreground/60 transition-colors"
+        onClick={() => setOpen(v => !v)}
+      >
+        {title}
+        <Icon name={open ? "ChevronUp" : "ChevronDown"} size={10} />
+      </button>
+      {open && <div className="px-3 pb-3 flex flex-col gap-2">{children}</div>}
+    </div>
+  )
+}
+
 export default function EmergencyScheme() {
   const navigate = useNavigate()
   const [schemes, setSchemes] = useState<SavedScheme[]>(loadSchemes)
@@ -351,6 +377,7 @@ export default function EmergencyScheme() {
   const [editingMarkers, setEditingMarkers] = useState(false)
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null)
   const imageContainerRef = useRef<HTMLDivElement>(null)
+  const previewImageRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -485,7 +512,7 @@ export default function EmergencyScheme() {
   }
 
   const getRelativePos = useCallback((clientX: number, clientY: number) => {
-    const el = imageContainerRef.current
+    const el = previewImageRef.current ?? imageContainerRef.current
     if (!el) return { x: 50, y: 50 }
     const rect = el.getBoundingClientRect()
     return {
@@ -1098,118 +1125,87 @@ export default function EmergencyScheme() {
               </button>
             </div>
           ) : (
-            <div className={activeTab === "preview" ? "flex flex-col h-full overflow-hidden" : "px-4 pb-10 md:px-6 lg:px-8"}>
+            <div className="flex flex-col h-full overflow-hidden">
               {/* Вкладки */}
-              <div className={`flex gap-1 border-b border-foreground/10 shrink-0 ${activeTab === "preview" ? "px-4 md:px-6" : ""} mt-3`}>
+              <div className="flex gap-1 border-b border-foreground/10 shrink-0 px-4">
                 {(["form", "preview"] as const).map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
                     className={`px-5 py-2.5 text-sm font-sans transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-primary text-foreground" : "border-transparent text-foreground/50 hover:text-foreground/80"}`}>
                     {tab === "form" ? "Ввод данных" : "Предпросмотр"}
                   </button>
                 ))}
+                {activeTab === "form" && (
+                  <span className="ml-auto self-center text-xs text-green-400 pr-2">Данные сохраняются автоматически</span>
+                )}
               </div>
 
-              {/* ФОРМА */}
+              {/* ФОРМА — левая панель + редактор схемы */}
               {activeTab === "form" && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 overflow-y-auto flex-1 mt-4">
-                  {/* Левая колонка */}
-                  <div className="flex flex-col gap-5">
-                    <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-5">
-                      <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-4">Заголовок документа</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Field label="Позиция №" value={form.position} onChange={set("position")} placeholder="28" />
-                        <Field label="Дата" value={form.date} onChange={set("date")} placeholder="01.01.2026" />
-                        <Field label="Время" value={form.time} onChange={set("time")} placeholder="7:15" />
-                        <Field label="Часовой пояс" value={form.timezone} onChange={set("timezone")} placeholder="мск" />
-                      </div>
-                    </div>
+                <div className="flex flex-1 overflow-hidden">
+                  {/* Левая панель — вертикальная, узкая, прокручиваемая */}
+                  <aside className="w-44 shrink-0 border-r border-foreground/10 overflow-y-auto flex flex-col gap-0" style={{ background: "hsl(var(--background))" }}>
 
-                    <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-5">
-                      <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-4">Основные сведения</p>
-                      <div className="flex flex-col gap-3">
-                        <Field label="Наименование объекта" value={form.objectName} onChange={set("objectName")} placeholder="Рудник (месторождение)..." wide />
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-foreground/50 font-mono uppercase tracking-wider">Вид аварии</label>
-                          <select value={form.accidentType} onChange={e => set("accidentType")(e.target.value)}
-                            className="bg-foreground/5 border border-foreground/15 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/60 transition-colors">
-                            {ACCIDENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
+                    <SideSection title="Заголовок" defaultOpen>
+                      <SideField label="Позиция №" value={form.position} onChange={set("position")} placeholder="28" />
+                      <div className="flex gap-1">
+                        <SideField label="Дата" value={form.date} onChange={set("date")} placeholder="01.01.2026" />
+                        <SideField label="Время" value={form.time} onChange={set("time")} placeholder="7:15" />
+                      </div>
+                      <SideField label="Часовой пояс" value={form.timezone} onChange={set("timezone")} placeholder="мск" />
+                    </SideSection>
+
+                    <SideSection title="Основные сведения" defaultOpen>
+                      <SideField label="Наименование объекта" value={form.objectName} onChange={set("objectName")} placeholder="Рудник..." />
+                      <div className="flex flex-col gap-0.5">
+                        <label className="text-[9px] text-foreground/40 uppercase tracking-wider">Вид аварии</label>
+                        <select value={form.accidentType} onChange={e => set("accidentType")(e.target.value)}
+                          className="bg-foreground/5 border border-foreground/15 rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary/60 transition-colors">
+                          {ACCIDENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex gap-1">
+                        <SideField label="Дата аварии" value={form.accidentDate} onChange={set("accidentDate")} />
+                        <SideField label="Время" value={form.accidentTime} onChange={set("accidentTime")} />
+                      </div>
+                      <SideField label="Место аварии" value={form.accidentLocation} onChange={set("accidentLocation")} placeholder="насосная гор. +210м." />
+                      <div className="flex gap-1">
+                        <SideField label="Воздух, м³/с" value={form.airVolume} onChange={set("airVolume")} placeholder="4,79" />
+                        <SideField label="Сечение, м²" value={form.sectionArea} onChange={set("sectionArea")} placeholder="10,0" />
+                      </div>
+                      <SideField label="Телефон КП" value={form.phoneCP} onChange={set("phoneCP")} placeholder="2-100" />
+                    </SideSection>
+
+                    <SideSection title="Атмосфера" defaultOpen>
+                      {([
+                        ["CO", "co", "%"], ["CO₂", "co2", "%"], ["SO₂", "so2", "%"],
+                        ["O₂", "o2", "%"], ["CH₄", "ch4", "%"], ["NO-NO₂", "nono2", "%"], ["t°", "temperature", "°C"],
+                      ] as [string, keyof FormData, string][]).map(([name, key, unit]) => (
+                        <div key={key} className="flex items-center gap-1 border-b border-foreground/8 pb-1">
+                          <span className="text-[10px] text-foreground/60 shrink-0" style={{ minWidth: 36 }}>{name}</span>
+                          <input value={form[key]} onChange={e => set(key)(e.target.value)}
+                            className="flex-1 bg-foreground/5 border border-foreground/15 rounded px-1 py-0.5 text-xs text-foreground text-right focus:outline-none focus:border-primary/60 w-0" />
+                          <span className="text-[9px] text-foreground/40 shrink-0">{unit}</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <Field label="Дата аварии" value={form.accidentDate} onChange={set("accidentDate")} />
-                          <Field label="Время аварии" value={form.accidentTime} onChange={set("accidentTime")} />
-                        </div>
-                        <Field label="Место аварии" value={form.accidentLocation} onChange={set("accidentLocation")} placeholder="насосная гор. +210м." />
-                        <div className="grid grid-cols-2 gap-3">
-                          <Field label="Кол-во воздуха, м³/с" value={form.airVolume} onChange={set("airVolume")} placeholder="4,79" />
-                          <Field label="Сечение выработки, м²" value={form.sectionArea} onChange={set("sectionArea")} placeholder="10,0" />
-                        </div>
-                        <Field label="Телефон КП" value={form.phoneCP} onChange={set("phoneCP")} placeholder="2-100" />
+                      ))}
+                      <div className="flex flex-col gap-0.5 mt-1">
+                        <label className="text-[9px] text-foreground/40 uppercase tracking-wider">Задымлённость</label>
+                        <select value={form.smokeLevel} onChange={e => set("smokeLevel")(e.target.value)}
+                          className="bg-foreground/5 border border-foreground/15 rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary/60">
+                          <option value="слабая от 10м.">слабая от 10м.</option>
+                          <option value="средняя от 5 до 10м.">средняя от 5 до 10м.</option>
+                          <option value="сильная менее 5м.">сильная менее 5м.</option>
+                        </select>
                       </div>
-                    </div>
+                    </SideSection>
 
-                    <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-5">
-                      <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-4">Подписи</p>
-                      <div className="flex flex-col gap-3">
-                        <Field label="Руководитель горноспасательных работ" value={form.headRescue} onChange={set("headRescue")} placeholder="Фамилия И.О." />
-                      </div>
-                    </div>
-                  </div>
+                    <SideSection title="Подписи" defaultOpen>
+                      <SideField label="Руководитель горноспасательных работ" value={form.headRescue} onChange={set("headRescue")} placeholder="Фамилия И.О." />
+                    </SideSection>
 
-                  {/* Правая колонка */}
-                  <div className="flex flex-col gap-5">
-                    <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-5">
-                      <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-4">Состав рудничной атмосферы</p>
-                      <div className="flex flex-col gap-2.5">
-                        <GasField label="CO" value={form.co} onChange={set("co")} />
-                        <GasField label="CO₂" value={form.co2} onChange={set("co2")} />
-                        <GasField label="SO₂" value={form.so2} onChange={set("so2")} />
-                        <GasField label="O₂" value={form.o2} onChange={set("o2")} />
-                        <GasField label="CH₄" value={form.ch4} onChange={set("ch4")} />
-                        <GasField label="NO-NO₂" value={form.nono2} onChange={set("nono2")} />
-                        <GasField label="t°" value={form.temperature} onChange={set("temperature")} />
-                        <div className="flex flex-col gap-1 mt-1">
-                          <label className="text-xs text-foreground/50 font-mono uppercase tracking-wider">Степень задымлённости</label>
-                          <input value={form.smokeLevel} onChange={e => set("smokeLevel")(e.target.value)} placeholder="средняя от 5 до 10м"
-                            className="bg-foreground/5 border border-foreground/15 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/60 transition-colors" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-5">
-                      <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-3">Схема (картинка) участка</p>
-                      <div onClick={() => fileInputRef.current?.click()}
-                        className="relative cursor-pointer rounded-lg border-2 border-dashed border-foreground/20 hover:border-primary/50 transition-colors overflow-hidden">
-                        {imageUrl ? (
-                          <img src={imageUrl} alt="Схема участка" className="w-full h-48 object-contain bg-white/5" />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-36 gap-2 text-foreground/40">
-                            <Icon name="ImagePlus" size={28} />
-                            <span className="text-sm">Нажмите для загрузки</span>
-                          </div>
-                        )}
-                      </div>
-                      {imageUrl && (
-                        <button onClick={() => { setImageUrl(null); setImageFile(null) }}
-                          className="mt-2 text-xs text-foreground/40 hover:text-foreground/70 transition-colors flex items-center gap-1">
-                          <Icon name="X" size={12} />Удалить
-                        </button>
-                      )}
-                      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                    </div>
-
-                    <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest">Условные обозначения</p>
-                        <button onClick={addLegendItem} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
-                          <Icon name="Plus" size={13} />Добавить
-                        </button>
-                      </div>
-                      {/* Библиотека иконок УО по ГОСТ */}
-                      <div className="mb-3">
-                        <p className="text-xs text-foreground/40 mb-2">Быстрое добавление из библиотеки:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {LEGEND_IMAGES.map(img => {
+                    <SideSection title="Условные обозначения" defaultOpen={false}>
+                      <p className="text-[9px] text-foreground/40 mb-1.5">Быстрое добавление из библиотеки:</p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {LEGEND_IMAGES.map(img => {
                             const alreadyAdded = legend.some(l => l.description === img.description)
                             return (
                               <button
@@ -1228,7 +1224,7 @@ export default function EmergencyScheme() {
                                     }])
                                   }
                                 }}
-                                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border transition-colors ${
+                                className={`flex flex-col items-center gap-0.5 p-1 rounded border transition-colors ${
                                   alreadyAdded
                                     ? "border-primary/60 bg-primary/15 hover:bg-red-500/15 hover:border-red-400/50"
                                     : "border-foreground/15 hover:border-primary/50 bg-foreground/5 hover:bg-primary/5"
@@ -1245,242 +1241,337 @@ export default function EmergencyScheme() {
                             )
                           })}
                         </div>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        {legend.map(item => (
-                          <div key={item.id} className="flex items-center gap-2">
-                            <div className="w-10 h-10 shrink-0 flex items-center justify-center border border-foreground/15 rounded-lg bg-foreground/5 overflow-hidden">
-                              {item.imageUrl
-                                ? <img src={item.imageUrl} alt={item.symbol} className="w-8 h-8 object-contain" />
-                                : <span className="text-base">{item.symbol || "?"}</span>
-                              }
+                      {legend.length > 0 && (
+                        <div className="flex flex-col gap-1.5 mt-1">
+                          {legend.map(item => (
+                            <div key={item.id} className="flex items-center gap-1.5 rounded px-1.5 py-1 border border-foreground/10 bg-foreground/5">
+                              <div className="w-6 h-6 shrink-0 flex items-center justify-center overflow-hidden">
+                                {item.imageUrl
+                                  ? <img src={item.imageUrl} alt={item.symbol} className="w-5 h-5 object-contain" />
+                                  : <span className="text-xs font-bold">{item.symbol || "?"}</span>
+                                }
+                              </div>
+                              <span className="flex-1 text-[10px] text-foreground/70 leading-tight truncate">{item.description}</span>
+                              <button onClick={() => removeLegend(item.id)} className="text-foreground/30 hover:text-red-400 transition-colors shrink-0">
+                                <Icon name="X" size={10} />
+                              </button>
                             </div>
-                            <input value={item.description} onChange={e => updateLegend(item.id, "description", e.target.value)} placeholder="Описание"
-                              className="flex-1 bg-foreground/5 border border-foreground/15 rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/60 transition-colors" />
-                            <button onClick={() => removeLegend(item.id)} className="text-foreground/30 hover:text-foreground/60 transition-colors shrink-0">
-                              <Icon name="Trash2" size={14} />
+                          ))}
+                        </div>
+                      )}
+                    </SideSection>
+
+                  </aside>
+
+                  {/* Правая часть — редактор схемы (канвас) */}
+                  <div className="flex-1 overflow-hidden flex flex-col" style={{ minWidth: 0 }}>
+                    {/* Загрузка картинки */}
+                    {!imageUrl ? (
+                      <div
+                        className="flex flex-col items-center justify-center h-full gap-4 cursor-pointer"
+                        style={{ background: "hsl(var(--card)/0.4)" }}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Icon name="ImagePlus" size={48} style={{ color: "hsl(var(--foreground)/0.2)" }} />
+                        <button
+                          className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:opacity-80"
+                          style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}
+                        >
+                          <Icon name="Upload" size={15} />
+                          Выбрать файл
+                        </button>
+                        <span className="text-xs" style={{ color: "hsl(var(--foreground)/0.3)" }}>или перетащите PNG, JPG, SVG</span>
+                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                      </div>
+                    ) : (
+                      <>
+                        {/* Тулбар редактора схемы */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-foreground/10 shrink-0 overflow-x-auto" style={{ background: "hsl(var(--toolbar-bg, var(--card)))" }}>
+                          <span className="text-[10px] text-foreground/40 font-mono uppercase tracking-wider shrink-0">Нажмите на символ — он появится на схеме:</span>
+                          <div className="flex gap-1 flex-wrap">
+                            {LEGEND_IMAGES.map(img => {
+                              const alreadyAdded = legend.some(l => l.description === img.description)
+                              return (
+                                <button
+                                  key={img.url}
+                                  title={img.description}
+                                  onClick={() => {
+                                    if (!alreadyAdded) {
+                                      const newId = Date.now().toString()
+                                      setLegend(l => [...l, { id: newId, symbol: img.symbol, description: img.description, imageUrl: img.url }])
+                                      setPlacingLegendId(newId)
+                                      if (!editingMarkers) setEditingMarkers(true)
+                                    } else {
+                                      const existing = legend.find(l => l.description === img.description)
+                                      if (existing) { setPlacingLegendId(existing.id); if (!editingMarkers) setEditingMarkers(true) }
+                                    }
+                                  }}
+                                  className={`flex flex-col items-center gap-0.5 p-1 rounded border transition-colors shrink-0 ${
+                                    placingLegendId === legend.find(l => l.description === img.description)?.id
+                                      ? "border-blue-400 bg-blue-500/20"
+                                      : alreadyAdded
+                                        ? "border-primary/50 bg-primary/10"
+                                        : "border-foreground/15 hover:border-foreground/30 bg-foreground/5"
+                                  }`}
+                                >
+                                  <img src={img.url} alt={img.description} className="w-7 h-7 object-contain" style={{ imageRendering: "crisp-edges" }} />
+                                  <span className="text-[8px] text-foreground/40 max-w-[48px] text-center leading-tight truncate">{img.description}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <div className="ml-auto flex items-center gap-2 shrink-0">
+                            {selectedMarkerId && (() => {
+                              const mk = markers.find(m => (m.instanceId ?? m.legendId) === selectedMarkerId)
+                              if (!mk) return null
+                              const sc = mk.scale ?? 1
+                              const rot = mk.rotation ?? 0
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-foreground/40">Размер</span>
+                                  <input type="range" min="0.3" max="3" step="0.1" value={sc}
+                                    onChange={e => updateMarker(selectedMarkerId, { scale: parseFloat(e.target.value) })}
+                                    className="w-16 accent-blue-400 h-1" />
+                                  <span className="text-[10px] text-foreground/60 w-5">{sc.toFixed(1)}×</span>
+                                  <span className="text-[10px] text-foreground/40">Угол</span>
+                                  <input type="range" min="0" max="359" step="5" value={rot}
+                                    onChange={e => updateMarker(selectedMarkerId, { rotation: parseInt(e.target.value) })}
+                                    className="w-16 accent-blue-400 h-1" />
+                                  <span className="text-[10px] text-foreground/60 w-7">{rot}°</span>
+                                  <button onClick={() => copyMarker(selectedMarkerId)} className="text-[10px] text-foreground/50 hover:text-foreground border border-foreground/15 rounded px-1.5 py-0.5 transition-colors">Копия</button>
+                                  <button onClick={() => removeMarker(selectedMarkerId)} className="text-[10px] text-red-400 border border-red-500/20 rounded px-1.5 py-0.5 transition-colors">Удалить</button>
+                                  <button onClick={() => setSelectedMarkerId(null)} className="text-foreground/30 hover:text-foreground/60"><Icon name="X" size={12} /></button>
+                                </div>
+                              )
+                            })()}
+                            <div className="flex gap-1">
+                              {(["Выбор", "Карандаш", "Ластик"] as const).map((t, i) => (
+                                <button key={t}
+                                  onClick={() => { if (i === 0) { setPlacingLegendId(null); setEditingMarkers(true) } }}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${i === 0 && editingMarkers && !placingLegendId ? "border-primary bg-primary/15 text-primary" : "border-foreground/15 text-foreground/50 hover:text-foreground"}`}
+                                >
+                                  <Icon name={i === 0 ? "MousePointer2" : i === 1 ? "Pencil" : "Eraser"} size={11} />
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+                            <button onClick={() => { setImageUrl(null); setImageFile(null); setMarkers([]) }}
+                              className="text-[10px] text-foreground/30 hover:text-red-400 border border-foreground/10 rounded px-2 py-1 transition-colors">
+                              <Icon name="Trash2" size={11} />
                             </button>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ПРЕДПРОСМОТР */}
-              {activeTab === "preview" && (
-                <>
-                {/* Тулбар предпросмотра */}
-                <div className="flex items-center gap-3 px-4 md:px-6 py-2 shrink-0 border-b border-foreground/10 bg-background/60 backdrop-blur-sm overflow-x-auto">
-                  <span className="text-xs text-foreground/40 font-mono uppercase tracking-wider shrink-0">Предпросмотр</span>
-
-                  {/* Панель выбранного маркера — в тулбаре */}
-                  {selectedMarkerId && (() => {
-                    const mk = markers.find(m => (m.instanceId ?? m.legendId) === selectedMarkerId)
-                    if (!mk) return null
-                    const sc = mk.scale ?? 1
-                    const rot = mk.rotation ?? 0
-                    const item = legend.find(l => l.id === mk.legendId)
-                    return (
-                      <div className="flex items-center gap-2 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
-                        {/* Иконка выбранного */}
-                        <div className="shrink-0 w-7 h-7 flex items-center justify-center border border-blue-400/40 rounded bg-blue-500/10">
-                          {item?.imageUrl
-                            ? <img src={item.imageUrl} alt="" className="w-5 h-5 object-contain" />
-                            : <span className="text-blue-300 text-[10px] font-bold">{item?.symbol}</span>
-                          }
                         </div>
-                        {/* Размер */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-foreground/40 text-[10px]">Размер</span>
-                          <input type="range" min="0.3" max="3" step="0.1" value={sc}
-                            onChange={e => updateMarker(selectedMarkerId, { scale: parseFloat(e.target.value) })}
-                            className="w-20 accent-blue-400 h-1" />
-                          <span className="text-foreground/70 text-[10px] w-6">{sc.toFixed(1)}×</span>
-                        </div>
-                        {/* Быстрые размеры */}
-                        <div className="flex gap-0.5 shrink-0">
-                          {[0.5, 1, 1.5, 2].map(s => (
-                            <button key={s} onClick={() => updateMarker(selectedMarkerId, { scale: s })}
-                              className={`text-[9px] rounded px-1.5 py-0.5 transition-colors ${Math.abs(sc - s) < 0.05 ? "bg-blue-500 text-white" : "bg-foreground/10 text-foreground/50 hover:bg-foreground/20"}`}>{s}×</button>
-                          ))}
-                        </div>
-                        {/* Разделитель */}
-                        <div className="w-px h-5 bg-foreground/15 shrink-0" />
-                        {/* Поворот */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-foreground/40 text-[10px]">Поворот</span>
-                          <input type="range" min="0" max="359" step="5" value={rot}
-                            onChange={e => updateMarker(selectedMarkerId, { rotation: parseInt(e.target.value) })}
-                            className="w-20 accent-blue-400 h-1" />
-                          <span className="text-foreground/70 text-[10px] w-7">{rot}°</span>
-                        </div>
-                        {/* Быстрые углы */}
-                        <div className="flex gap-0.5 shrink-0">
-                          {[0, 90, 180, 270].map(a => (
-                            <button key={a} onClick={() => updateMarker(selectedMarkerId, { rotation: a })}
-                              className={`text-[9px] rounded px-1.5 py-0.5 transition-colors ${rot === a ? "bg-blue-500 text-white" : "bg-foreground/10 text-foreground/50 hover:bg-foreground/20"}`}>{a}°</button>
-                          ))}
-                        </div>
-                        {/* Разделитель */}
-                        <div className="w-px h-5 bg-foreground/15 shrink-0" />
-                        {/* Копировать / Удалить */}
-                        <button onClick={() => copyMarker(selectedMarkerId)}
-                          className="flex items-center gap-1 shrink-0 text-[10px] text-foreground/60 hover:text-foreground border border-foreground/15 hover:border-foreground/30 rounded-lg px-2 py-1 transition-colors">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                          Копировать
-                        </button>
-                        <button onClick={() => removeMarker(selectedMarkerId)}
-                          className="flex items-center gap-1 shrink-0 text-[10px] text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 rounded-lg px-2 py-1 transition-colors">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                          Удалить
-                        </button>
-                        {/* Закрыть */}
-                        <button onClick={() => setSelectedMarkerId(null)}
-                          className="shrink-0 text-foreground/30 hover:text-foreground/60 transition-colors ml-1">
-                          <Icon name="X" size={14} />
-                        </button>
-                      </div>
-                    )
-                  })()}
 
-                  {/* Кнопка Готово — всегда справа */}
-                  <button
-                    onClick={() => { setEditingMarkers(e => !e); setPlacingLegendId(null); setSelectedMarkerId(null) }}
-                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors shrink-0 ml-auto ${editingMarkers ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-400" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}
-                  >
-                    <Icon name={editingMarkers ? "Check" : "MapPin"} size={13} />
-                    {editingMarkers ? "Готово" : "Разместить маркеры"}
-                  </button>
-                </div>
-
-                {/* Полноэкранная рабочая область */}
-                <div className="flex-1 overflow-hidden flex flex-col">
-
-                  {/* Шапка документа — компактная полоска */}
-                  <div ref={previewRef} className="bg-white text-black flex flex-col flex-1 min-h-0 overflow-hidden" style={{ fontFamily: "Times New Roman, serif" }}>
-                  <div ref={headerRef} className="px-4 pt-2 pb-1" style={{ borderBottom: "1px solid #ccc" }}>
-                    <p className="text-center font-bold" style={{ fontSize: 12 }}>
-                      Схема аварийного участка — позиция&nbsp;{form.position || "—"}
-                      &nbsp;&nbsp;{form.date}&nbsp;{form.time}&nbsp;({form.timezone})
-                    </p>
-                    <div className="flex gap-0 mt-0.5" style={{ fontSize: 10 }}>
-                      <div style={{ width: "50%", paddingRight: 6 }}>
-                        <span className="font-bold">Объект:</span> {form.objectName || "—"} &nbsp;
-                        <span className="font-bold">Авария:</span> {form.accidentType} &nbsp;
-                        <span className="font-bold">Место:</span> {form.accidentLocation || "—"}
-                      </div>
-                      <div style={{ width: "50%", borderLeft: "1px solid #ccc", paddingLeft: 6 }}>
-                        <span className="font-bold">Дата/время:</span> {form.accidentDate} {form.accidentTime} &nbsp;
-                        <span className="font-bold">Q:</span> {form.airVolume || "—"} м³/с &nbsp;
-                        <span className="font-bold">S:</span> {form.sectionArea || "—"} м² &nbsp;
-                        <span className="font-bold">КП:</span> {form.phoneCP || "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Рабочая область: картинка во весь экран + панель УО справа */}
-                  <div className="flex flex-1 min-h-0">
-                    {/* Картинка схемы — занимает всё место */}
-                    <div
-                      ref={imageContainerRef}
-                      className={`relative bg-gray-100 select-none flex-1 overflow-hidden ${placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : ""}`}
-                      onClick={handleImageAreaClick}
-                      onMouseMove={handleMouseMove}
-                      onMouseUp={handleMouseUp}
-                      onMouseLeave={handleMouseUp}
-                    >
-                      {imageUrl ? (
-                        <img src={imageUrl} alt="Схема" className="block pointer-events-none w-full h-full object-contain" />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                          <span className="text-sm">Загрузите схему участка во вкладке «Ввод данных»</span>
-                        </div>
-                      )}
-                      {placingLegendId && (
-                        <div className="absolute inset-0 border-4 border-dashed border-blue-400 pointer-events-none flex items-end justify-center pb-8">
-                          <span className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg shadow-lg">Кликните для размещения УО</span>
-                        </div>
-                      )}
-                      {markers.map(mk => {
-                        const item = legend.find(l => l.id === mk.legendId)
-                        if (!item) return null
-                        const iid = mk.instanceId ?? mk.legendId
-                        const sc = mk.scale ?? 1
-                        const rot = mk.rotation ?? 0
-                        const isSelected = selectedMarkerId === iid
-                        return (
-                          <div
-                            key={iid}
-                            className="absolute cursor-grab active:cursor-grabbing"
-                            style={{
-                              left: `${mk.x}%`, top: `${mk.y}%`,
-                              transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`,
-                              zIndex: isSelected ? 30 : 10,
-                              transformOrigin: "center",
-                            }}
-                            onMouseDown={e => handleMarkerMouseDown(e, iid)}
-                            onClick={e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) }}
-                          >
-                            {item.imageUrl
-                              ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 36, height: 36, objectFit: "contain", display: "block" }} draggable={false} />
-                              : <span className="font-bold text-gray-900 drop-shadow" style={{ fontSize: 14, lineHeight: 1 }}>{item.symbol}</span>
-                            }
-                            {isSelected && (
-                              <div className="absolute rounded border-2 border-blue-500 pointer-events-none" style={{ inset: -4 }} />
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* Правая панель УО */}
-                    {legend.length > 0 && (
-                      <div className="bg-white border-l border-gray-200 overflow-y-auto shrink-0" style={{ width: 180, padding: "6px 8px" }}>
-                        <p className="font-bold underline mb-2" style={{ fontSize: 10 }}>Условные обозначения:</p>
-                        <div className="flex flex-col gap-1">
-                          {legend.map(item => {
-                            const placedCount = markers.filter(m => m.legendId === item.id).length
-                            const isPlacing = placingLegendId === item.id
+                        {/* Область схемы с маркерами */}
+                        <div
+                          ref={imageContainerRef}
+                          className={`relative flex-1 overflow-hidden select-none ${placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : ""}`}
+                          style={{ background: "#1a1a2e" }}
+                          onClick={handleImageAreaClick}
+                          onMouseMove={handleMouseMove}
+                          onMouseUp={handleMouseUp}
+                          onMouseLeave={handleMouseUp}
+                        >
+                          <img src={imageUrl} alt="Схема" className="block pointer-events-none w-full h-full object-contain" />
+                          {placingLegendId && (
+                            <div className="absolute inset-0 border-4 border-dashed border-blue-400 pointer-events-none flex items-end justify-center pb-8">
+                              <span className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg shadow-lg">Кликните для размещения</span>
+                            </div>
+                          )}
+                          {markers.map(mk => {
+                            const item = legend.find(l => l.id === mk.legendId)
+                            if (!item) return null
+                            const iid = mk.instanceId ?? mk.legendId
+                            const sc = mk.scale ?? 1
+                            const rot = mk.rotation ?? 0
+                            const isSelected = selectedMarkerId === iid
                             return (
-                              <div key={item.id}
-                                className={`flex items-center gap-1.5 rounded px-1 py-0.5 cursor-pointer transition-colors ${isPlacing ? "bg-blue-50 ring-1 ring-blue-300" : "hover:bg-gray-50"}`}
-                                onClick={() => {
-                                  if (!editingMarkers) setEditingMarkers(true)
-                                  setPlacingLegendId(isPlacing ? null : item.id)
-                                  setSelectedMarkerId(null)
-                                }}
-                                title={isPlacing ? "Отмена" : "Кликните на схеме для размещения"}
+                              <div key={iid} className="absolute cursor-grab active:cursor-grabbing"
+                                style={{ left: `${mk.x}%`, top: `${mk.y}%`, transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`, zIndex: isSelected ? 30 : 10, transformOrigin: "center" }}
+                                onMouseDown={e => handleMarkerMouseDown(e, iid)}
+                                onClick={e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) }}
                               >
-                                <span className="shrink-0 flex items-center justify-center" style={{ width: 18, height: 18 }}>
-                                  {item.imageUrl
-                                    ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 16, height: 16, objectFit: "contain" }} />
-                                    : <span style={{ fontWeight: "bold", fontSize: 9 }}>{item.symbol}</span>
-                                  }
-                                </span>
-                                <span className="flex-1 leading-tight" style={{ fontSize: 9 }}>{item.description}</span>
-                                {placedCount > 0 && (
-                                  <span className="shrink-0 text-blue-500 font-bold" style={{ fontSize: 8 }}>×{placedCount}</span>
-                                )}
-                                {isPlacing && <span className="shrink-0 text-blue-500" style={{ fontSize: 9 }}>✕</span>}
+                                {item.imageUrl
+                                  ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 36, height: 36, objectFit: "contain", display: "block" }} draggable={false} />
+                                  : <span className="font-bold text-gray-900 drop-shadow" style={{ fontSize: 14 }}>{item.symbol}</span>
+                                }
+                                {isSelected && <div className="absolute rounded border-2 border-blue-500 pointer-events-none" style={{ inset: -4 }} />}
                               </div>
                             )
                           })}
                         </div>
-                        <p className="text-gray-400 mt-2 leading-tight" style={{ fontSize: 7 }}>Клик по строке → разместить на схеме</p>
-                      </div>
+                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                      </>
                     )}
                   </div>
+                </div>
+              )}
 
-                  {/* Подписи */}
-                  <div className="bg-white px-4 py-1.5" style={{ fontSize: 10, borderTop: "1px solid #ccc" }}>
-                    <span className="font-bold">Руководитель горноспасательных работ:&nbsp;<span className="border-b border-gray-500 inline-block" style={{ minWidth: 150 }}>{form.headRescue}</span></span>
-                  </div>
+              {/* ПРЕДПРОСМОТР — A4 альбомный документ */}
+              {activeTab === "preview" && (
+                <div className="flex-1 overflow-auto" style={{ background: "hsl(216 20% 8%)" }}>
+                  <div className="flex justify-center py-6 px-4">
+                    {/* Лист A4 альбомный 297×210мм */}
+                    <div
+                      ref={previewRef}
+                      style={{
+                        width: "min(98vw, 1056px)",
+                        aspectRatio: "297 / 210",
+                        background: "#fff",
+                        boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
+                        borderRadius: 2,
+                        position: "relative",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                        fontFamily: "Times New Roman, Times, serif",
+                        color: "#000",
+                        display: "flex",
+                        flexDirection: "column",
+                        padding: "2% 3.4% 2% 3.4%",
+                        boxSizing: "border-box",
+                        fontSize: "clamp(7px, 0.9vw, 10px)",
+                      }}
+                    >
+                      {/* ЗАГОЛОВОК */}
+                      <div style={{ textAlign: "center", fontWeight: 700, fontSize: "1.15em", marginBottom: "0.6em", borderBottom: "2px solid #1e3a8a", paddingBottom: "0.4em", flexShrink: 0 }}>
+                        Схема аварийного участка&nbsp;—&nbsp;позиция&nbsp;
+                        <span style={{ borderBottom: "1px solid #000", minWidth: 28, display: "inline-block" }}>{form.position || "\u00A0"}</span>
+                        &nbsp;&nbsp;
+                        <span style={{ borderBottom: "1px solid #000", minWidth: 60, display: "inline-block" }}>{form.date}</span>
+                        &nbsp;&nbsp;
+                        <span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.time}</span>
+                        &nbsp;(&nbsp;<span style={{ borderBottom: "1px solid #000", minWidth: 24, display: "inline-block" }}>{form.timezone || "мск"}</span>&nbsp;)
+                      </div>
+
+                      {/* ВЕРХНИЙ БЛОК: реквизиты + атмосфера */}
+                      <div style={{ display: "flex", gap: "1em", flexShrink: 0, marginBottom: "0.5em" }}>
+                        {/* Левая — реквизиты */}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", gap: "0.3em", marginBottom: "0.25em", alignItems: "flex-end" }}>
+                            <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Наименование объекта:</span>
+                            <span style={{ borderBottom: "1px solid #000", flex: 1 }}>{form.objectName || "\u00A0"}</span>
+                          </div>
+                          <table style={{ borderCollapse: "collapse", width: "100%", lineHeight: 1.5 }}>
+                            <tbody>
+                              <tr>
+                                <td style={{ fontWeight: 700, whiteSpace: "nowrap", paddingRight: "0.4em" }}>Вид аварии:</td>
+                                <td style={{ borderBottom: "1px solid #000" }}>{form.accidentType}</td>
+                                <td style={{ fontWeight: 700, whiteSpace: "nowrap", paddingLeft: "0.8em", paddingRight: "0.4em" }}>Дата/время:</td>
+                                <td style={{ whiteSpace: "nowrap" }}>
+                                  <span style={{ borderBottom: "1px solid #000", minWidth: 60, display: "inline-block" }}>{form.accidentDate}</span>
+                                  &nbsp;<span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.accidentTime}</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Место аварии:</td>
+                                <td colSpan={3} style={{ borderBottom: "1px solid #000", fontStyle: "italic" }}>{form.accidentLocation || "\u00A0"}</td>
+                              </tr>
+                              <tr>
+                                <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Кол-во воздуха:</td>
+                                <td><span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.airVolume}</span>&nbsp;м³/с</td>
+                                <td style={{ fontWeight: 700, whiteSpace: "nowrap", paddingLeft: "0.8em" }}>Сечение:</td>
+                                <td><span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.sectionArea}</span>&nbsp;м²</td>
+                              </tr>
+                              <tr>
+                                <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Телефон КП:</td>
+                                <td colSpan={3} style={{ fontStyle: "italic" }}><span style={{ borderBottom: "1px solid #000", minWidth: 60, display: "inline-block" }}>{form.phoneCP}</span></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Правая — атмосфера */}
+                        <div style={{ flexShrink: 0, borderLeft: "1px solid #94a3b8", paddingLeft: "0.8em" }}>
+                          <div style={{ fontWeight: 700, textDecoration: "underline", marginBottom: "0.2em" }}>Состав рудничной атмосферы:</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em", rowGap: "0.1em" }}>
+                            {([
+                              ["CO", form.co, "%"], ["CO₂", form.co2, "%"],
+                              ["SO₂", form.so2, "%"], ["O₂", form.o2, "%"],
+                              ["CH₄", form.ch4, "%"], ["NO-NO₂", form.nono2, "%"],
+                              ["t°", form.temperature, "°C"],
+                            ] as [string, string, string][]).map(([name, val, unit]) => (
+                              <div key={name} style={{ whiteSpace: "nowrap" }}>
+                                <b>{name}-</b>&nbsp;<i><span style={{ borderBottom: "1px solid #000", minWidth: 30, display: "inline-block" }}>{val || "0,00"}</span></i>&nbsp;{unit}
+                              </div>
+                            ))}
+                            <div style={{ gridColumn: "1 / -1" }}>
+                              <b>Задымлённость-</b>&nbsp;<i>{form.smokeLevel || "\u00A0"}</i>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ОСНОВНАЯ ОБЛАСТЬ: схема + УО */}
+                      <div style={{ flex: 1, display: "flex", border: "1px solid #64748b", minHeight: 0 }}>
+                        {/* Картинка схемы с маркерами */}
+                        <div
+                          ref={previewImageRef}
+                          style={{ flex: 1, position: "relative", borderRight: legend.length > 0 ? "1px solid #64748b" : "none", overflow: "hidden" }}
+                          className={placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : ""}
+                          onClick={handleImageAreaClick}
+                          onMouseMove={handleMouseMove}
+                          onMouseUp={handleMouseUp}
+                          onMouseLeave={handleMouseUp}
+                        >
+                          {imageUrl ? (
+                            <img src={imageUrl} alt="Схема" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} draggable={false} className="pointer-events-none" />
+                          ) : (
+                            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                              <span style={{ color: "#cbd5e1", fontSize: "1.5em", fontWeight: 300 }}>Аварийная схема №1</span>
+                            </div>
+                          )}
+                          {placingLegendId && (
+                            <div className="absolute inset-0 border-4 border-dashed border-blue-400 pointer-events-none flex items-end justify-center pb-4">
+                              <span className="bg-blue-500 text-white text-xs px-3 py-1.5 rounded shadow-lg">Кликните для размещения</span>
+                            </div>
+                          )}
+                          {markers.map(mk => {
+                            const item = legend.find(l => l.id === mk.legendId)
+                            if (!item) return null
+                            const iid = mk.instanceId ?? mk.legendId
+                            const sc = mk.scale ?? 1
+                            const rot = mk.rotation ?? 0
+                            const isSelected = selectedMarkerId === iid
+                            return (
+                              <div key={iid} className="absolute cursor-grab active:cursor-grabbing"
+                                style={{ left: `${mk.x}%`, top: `${mk.y}%`, transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`, zIndex: isSelected ? 30 : 10, transformOrigin: "center" }}
+                                onMouseDown={e => handleMarkerMouseDown(e, iid)}
+                                onClick={e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) }}
+                              >
+                                {item.imageUrl
+                                  ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 28, height: 28, objectFit: "contain", display: "block" }} draggable={false} />
+                                  : <span style={{ fontWeight: "bold", color: "#111", fontSize: 11 }}>{item.symbol}</span>
+                                }
+                                {isSelected && <div className="absolute rounded border-2 border-blue-500 pointer-events-none" style={{ inset: -3 }} />}
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Условные обозначения справа */}
+                        {legend.length > 0 && (
+                          <div style={{ width: "15%", flexShrink: 0, padding: "0.4em 0.5em", overflow: "hidden" }}>
+                            <div style={{ fontWeight: 700, textDecoration: "underline", textAlign: "center", marginBottom: "0.3em" }}>Условные обозначения:</div>
+                            {legend.map((item, i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.3em", borderBottom: "1px solid #e2e8f0", padding: "0.15em 0" }}>
+                                {item.imageUrl && <img src={item.imageUrl} style={{ width: 12, height: 12, objectFit: "contain", flexShrink: 0 }} />}
+                                <span style={{ lineHeight: 1.2, flex: 1, fontSize: "0.82em" }}>{item.description}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ПОДПИСЬ */}
+                      <div style={{ flexShrink: 0, paddingTop: "0.6em", display: "flex", alignItems: "flex-end", gap: "0.5em" }}>
+                        <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Руководитель горноспасательных работ:</span>
+                        <div style={{ flex: 1, borderBottom: "1px solid #000" }}>&nbsp;</div>
+                        <span style={{ fontStyle: "italic", borderBottom: "1px solid #000", minWidth: 120, textAlign: "center", display: "inline-block" }}>{form.headRescue || "\u00A0"}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                </>
               )}
             </div>
           )}
