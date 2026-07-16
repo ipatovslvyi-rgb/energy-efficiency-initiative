@@ -578,3 +578,87 @@ export function TabPowder() {
     </div>
   )
 }
+
+export function TabPowderReserve() {
+  const [M1, setM1] = useState("")
+  const [Noch, setNoch] = useState("1")
+  const [Kzap, setKzap] = useState("3")
+  const [cartridge, setCartridge] = useState("50")
+  const [calculated, setCalculated] = useState(false)
+  const [result, setResult] = useState<{ Mun: number; N: number } | null>(null)
+
+  const calc = () => {
+    const m1 = parseFloat(M1.replace(",", "."))
+    const n  = parseFloat(Noch.replace(",", "."))
+    const k  = parseFloat(Kzap.replace(",", "."))
+    const one = parseFloat(cartridge.replace(",", "."))
+    if ([m1, n, k].every(v => !isNaN(v) && v > 0)) {
+      const Mun = m1 * n * k
+      const N = one > 0 ? Math.ceil(Mun / one) : 0
+      setResult({ Mun, N })
+      setCalculated(true)
+    }
+  }
+  const reset = () => { setM1(""); setNoch("1"); setKzap("3"); setCalculated(false); setResult(null) }
+  const isReady = !!M1 && !!Noch && !!Kzap
+
+  const getExportData = (): ExportData => ({
+    title: "Нормативный запас порошка на участок ведения ГСР",
+    formula: "Mун = M1 × Nоч × Kзап",
+    inputs: [
+      { label: "Расход порошка на 1 очаг (M1)", value: M1, unit: "кг" },
+      { label: "Кол-во одновременных очагов (Nоч)", value: Noch, unit: "шт." },
+      { label: "Коэффициент запаса на участок (Kзап)", value: Kzap, unit: "" },
+      { label: "Ёмкость одного огнетушителя/баллона", value: cartridge, unit: "кг" },
+    ],
+    results: result ? [
+      { label: "Нормативный запас на участок ГСР (Mун)", value: result.Mun.toFixed(1), unit: "кг" },
+      { label: "Количество огнетушителей/баллонов запаса (N)", value: String(result.N), unit: "шт." },
+    ] : [],
+  })
+
+  return (
+    <div className="grid gap-10 md:grid-cols-2 md:gap-16">
+      <div>
+        <FormulaBox
+          formula="Mун = M1 × Nоч × Kзап"
+          params={[
+            { sym: "Mун", desc: "Нормативный запас огнетушащего порошка на участок ведения ГСР, кг" },
+            { sym: "M1", desc: "Расход порошка на тушение одного очага пожара, кг (см. расчёт «Огнетуш. порошок»)" },
+            { sym: "Nоч", desc: "Максимальное количество одновременно ликвидируемых очагов на участке, шт." },
+            { sym: "Kзап", desc: "Нормативный коэффициент резерва (рабочий + базовый + транспортный запас)" },
+          ]}
+        />
+        <div className="mt-5 rounded-lg border border-foreground/10 p-4">
+          <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-2">Нормативные коэффициенты запаса Kзап</p>
+          <div className="space-y-1 text-xs text-foreground/60 font-mono">
+            <div className="flex justify-between gap-2"><span>Минимальный (1 очаг, без резерва базы)</span><span className="shrink-0">1.5</span></div>
+            <div className="flex justify-between gap-2"><span>Стандартный (рабочий + резерв на ПБ/НБ)</span><span className="shrink-0">2.0–3.0</span></div>
+            <div className="flex justify-between gap-2"><span>Повышенный (сложный/протяжённый участок)</span><span className="shrink-0">3.0–4.0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-5">
+        <NumInput label="Расход порошка на 1 очаг — M1, кг" value={M1} onChange={(v) => { setM1(v); setCalculated(false); setResult(null) }} placeholder="Например: 36" />
+        <div className="grid grid-cols-2 gap-4">
+          <NumInput label="Кол-во очагов — Nоч, шт." value={Noch} onChange={(v) => { setNoch(v); setCalculated(false); setResult(null) }} placeholder="1" />
+          <NumInput label="Коэффициент запаса — Kзап" value={Kzap} onChange={(v) => { setKzap(v); setCalculated(false); setResult(null) }} placeholder="3" />
+        </div>
+        <NumInput label="Ёмкость 1 огнетушителя/баллона, кг" value={cartridge} onChange={(v) => { setCartridge(v); setCalculated(false); setResult(null) }} placeholder="50" />
+
+        <CalcButtons onCalc={calc} onReset={reset} disabled={!isReady} showReset={calculated} />
+
+        {result && (
+          <ResultBox>
+            <ResultRow label="Нормативный запас на участок Mун" value={result.Mun.toFixed(1)} unit="кг" />
+            <div className="border-t border-foreground/10 pt-2">
+              <ResultRow label="Количество огнетушителей/баллонов N" value={String(result.N)} unit="шт." />
+            </div>
+            <ExportButtons data={getExportData()} />
+          </ResultBox>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -1,36 +1,38 @@
 import { useReveal } from "@/hooks/use-reveal"
 import { useState } from "react"
 import { TabTrunks, TabFlow, TabHoses, TabFlood, TabFoam } from "./firefighting-tabs-1"
-import { TabVolume, TabArea, TabResistance, TabFireIndex, TabInertGas, TabPowder } from "./firefighting-tabs-2"
+import { TabVolume, TabArea, TabResistance, TabFireIndex, TabInertGas, TabPowder, TabPowderReserve } from "./firefighting-tabs-2"
 
-type TabKey = "trunks" | "flow" | "hoses" | "flood" | "foam" | "powder" | "volume" | "area" | "resistance" | "fire-index" | "inert-gas"
+type TabKey = "trunks" | "flow" | "hoses" | "flood" | "foam" | "powder" | "powder-reserve" | "volume" | "area" | "resistance" | "fire-index" | "inert-gas"
 
 const TABS: { key: TabKey; label: string; full: string; short: string }[] = [
-  { key: "trunks",      label: "Кол-во стволов",         full: "Количество стволов для тушения пожара",                              short: "Стволы" },
-  { key: "flow",        label: "Требуемый расход",        full: "Требуемый расход воды на тушение пожара",                           short: "Расход" },
-  { key: "hoses",       label: "Кол-во рукавов",          full: "Количество пожарных рукавов от водоисточника до места пожара",       short: "Рукава" },
-  { key: "flood",       label: "Время затопления",        full: "Время затопления горной выработки",                                 short: "Затопл." },
-  { key: "foam",        label: "Расход пенообразователя", full: "Требуемый расход раствора пенообразователя",                        short: "Пена" },
-  { key: "powder",      label: "Огнетуш. порошок",         full: "Количество огнетушащего порошка для тушения пожара в выработке",   short: "Порошок" },
-  { key: "volume",      label: "Объём выработки",         full: "Объём горной выработки",                                           short: "Объём" },
-  { key: "area",        label: "Площадь пожара",          full: "Площадь пожара в горной выработке",                                short: "Площадь" },
-  { key: "resistance",  label: "Сопротивление линии",     full: "Потери напора в рукавной линии",                                   short: "Сопротивл." },
-  { key: "fire-index",  label: "Пожарное состояние",      full: "Индексы пожарного состояния атмосферы (Грэхем, Янг)",              short: "Пожар. индекс" },
-  { key: "inert-gas",   label: "Инертный газ",            full: "Расчёт подачи инертного газа для тушения пожара",                   short: "Инерт. газ" },
+  { key: "trunks",         label: "Кол-во стволов",         full: "Количество стволов для тушения пожара",                              short: "Стволы" },
+  { key: "flow",           label: "Требуемый расход",        full: "Требуемый расход воды на тушение пожара",                           short: "Расход" },
+  { key: "hoses",          label: "Кол-во рукавов",          full: "Количество пожарных рукавов от водоисточника до места пожара",       short: "Рукава" },
+  { key: "flood",          label: "Время затопления",        full: "Время затопления горной выработки",                                 short: "Затопл." },
+  { key: "foam",           label: "Расход пенообразователя", full: "Требуемый расход раствора пенообразователя",                        short: "Пена" },
+  { key: "powder",         label: "Огнетуш. порошок",         full: "Количество огнетушащего порошка для тушения пожара в выработке",   short: "Порошок" },
+  { key: "powder-reserve", label: "Запас порошка на участок", full: "Нормативный запас огнетушащего порошка на участок ведения ГСР",    short: "Запас порошка" },
+  { key: "volume",         label: "Объём выработки",         full: "Объём горной выработки",                                           short: "Объём" },
+  { key: "area",           label: "Площадь пожара",          full: "Площадь пожара в горной выработке",                                short: "Площадь" },
+  { key: "resistance",     label: "Сопротивление линии",     full: "Потери напора в рукавной линии",                                   short: "Сопротивл." },
+  { key: "fire-index",     label: "Пожарное состояние",      full: "Индексы пожарного состояния атмосферы (Грэхем, Янг)",              short: "Пожар. индекс" },
+  { key: "inert-gas",      label: "Инертный газ",            full: "Расчёт подачи инертного газа для тушения пожара",                   short: "Инерт. газ" },
 ]
 
 const TAB_CONTENT: Record<TabKey, React.FC> = {
-  trunks:       TabTrunks,
-  flow:         TabFlow,
-  hoses:        TabHoses,
-  flood:        TabFlood,
-  foam:         TabFoam,
-  powder:       TabPowder,
-  volume:       TabVolume,
-  area:         TabArea,
-  resistance:   TabResistance,
-  "fire-index": TabFireIndex,
-  "inert-gas":  TabInertGas,
+  trunks:           TabTrunks,
+  flow:             TabFlow,
+  hoses:            TabHoses,
+  flood:            TabFlood,
+  foam:             TabFoam,
+  powder:           TabPowder,
+  "powder-reserve": TabPowderReserve,
+  volume:           TabVolume,
+  area:             TabArea,
+  resistance:       TabResistance,
+  "fire-index":     TabFireIndex,
+  "inert-gas":      TabInertGas,
 }
 
 export function FirefightingSection({ sectionRef }: { sectionRef?: (el: HTMLElement | null) => void } = {}) {
