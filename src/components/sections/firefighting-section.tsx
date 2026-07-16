@@ -1,9 +1,9 @@
 import { useReveal } from "@/hooks/use-reveal"
 import { useState } from "react"
 import { TabTrunks, TabFlow, TabHoses, TabFlood, TabFoam } from "./firefighting-tabs-1"
-import { TabVolume, TabArea, TabResistance, TabFireIndex, TabInertGas } from "./firefighting-tabs-2"
+import { TabVolume, TabArea, TabResistance, TabFireIndex, TabInertGas, TabPowder } from "./firefighting-tabs-2"
 
-type TabKey = "trunks" | "flow" | "hoses" | "flood" | "foam" | "volume" | "area" | "resistance" | "fire-index" | "inert-gas"
+type TabKey = "trunks" | "flow" | "hoses" | "flood" | "foam" | "powder" | "volume" | "area" | "resistance" | "fire-index" | "inert-gas"
 
 const TABS: { key: TabKey; label: string; full: string; short: string }[] = [
   { key: "trunks",      label: "Кол-во стволов",         full: "Количество стволов для тушения пожара",                              short: "Стволы" },
@@ -11,6 +11,7 @@ const TABS: { key: TabKey; label: string; full: string; short: string }[] = [
   { key: "hoses",       label: "Кол-во рукавов",          full: "Количество пожарных рукавов от водоисточника до места пожара",       short: "Рукава" },
   { key: "flood",       label: "Время затопления",        full: "Время затопления горной выработки",                                 short: "Затопл." },
   { key: "foam",        label: "Расход пенообразователя", full: "Требуемый расход раствора пенообразователя",                        short: "Пена" },
+  { key: "powder",      label: "Огнетуш. порошок",         full: "Количество огнетушащего порошка для тушения пожара в выработке",   short: "Порошок" },
   { key: "volume",      label: "Объём выработки",         full: "Объём горной выработки",                                           short: "Объём" },
   { key: "area",        label: "Площадь пожара",          full: "Площадь пожара в горной выработке",                                short: "Площадь" },
   { key: "resistance",  label: "Сопротивление линии",     full: "Потери напора в рукавной линии",                                   short: "Сопротивл." },
@@ -24,6 +25,7 @@ const TAB_CONTENT: Record<TabKey, React.FC> = {
   hoses:        TabHoses,
   flood:        TabFlood,
   foam:         TabFoam,
+  powder:       TabPowder,
   volume:       TabVolume,
   area:         TabArea,
   resistance:   TabResistance,

@@ -451,3 +451,130 @@ export function TabInertGas() {
     </div>
   )
 }
+
+const POWDER_MATERIALS = [
+  { key: "wood",     label: "Деревянная крепь (класс А)",        Jn: 0.30, K3: 2.0 },
+  { key: "oil",      label: "ГСМ, масла, нефтепродукты (класс B)", Jn: 0.40, K3: 1.5 },
+  { key: "electric", label: "Электрооборудование под напряжением", Jn: 0.35, K3: 2.0 },
+  { key: "belt",     label: "Конвейерная лента (резина)",          Jn: 0.30, K3: 2.0 },
+] as const
+
+export function TabPowder() {
+  const [material, setMaterial] = useState<typeof POWDER_MATERIALS[number]["key"]>("wood")
+  const [Sp, setSp] = useState("")
+  const [Jn, setJn] = useState("0.30")
+  const [tau, setTau] = useState("60")
+  const [K3, setK3] = useState("2.0")
+  const [cartridge, setCartridge] = useState("5")
+  const [calculated, setCalculated] = useState(false)
+  const [result, setResult] = useState<{ M: number; N: number } | null>(null)
+
+  const selectMaterial = (key: typeof POWDER_MATERIALS[number]["key"]) => {
+    const m = POWDER_MATERIALS.find(x => x.key === key)!
+    setMaterial(key)
+    setJn(String(m.Jn))
+    setK3(String(m.K3))
+    setCalculated(false)
+    setResult(null)
+  }
+
+  const calc = () => {
+    const sp  = parseFloat(Sp.replace(",", "."))
+    const jn  = parseFloat(Jn.replace(",", "."))
+    const t   = parseFloat(tau.replace(",", "."))
+    const k3  = parseFloat(K3.replace(",", "."))
+    const one = parseFloat(cartridge.replace(",", "."))
+    if ([sp, jn, t, k3].every(v => !isNaN(v) && v > 0)) {
+      const M = sp * jn * t * k3
+      const N = one > 0 ? Math.ceil(M / one) : 0
+      setResult({ M, N })
+      setCalculated(true)
+    }
+  }
+  const reset = () => { setSp(""); setCalculated(false); setResult(null) }
+  const isReady = !!Sp && !!Jn && !!tau && !!K3
+
+  const materialLabel = POWDER_MATERIALS.find(m => m.key === material)?.label ?? ""
+
+  const getExportData = (): ExportData => ({
+    title: "Расчёт количества огнетушащего порошка",
+    formula: "M = Sп × Jн × τ × K3",
+    inputs: [
+      { label: "Материал горения", value: materialLabel, unit: "" },
+      { label: "Площадь пожара (Sп)", value: Sp, unit: "м²" },
+      { label: "Нормативная интенсивность (Jн)", value: Jn, unit: "кг/(м²·с)" },
+      { label: "Расчётное время тушения (τ)", value: tau, unit: "с" },
+      { label: "Коэффициент запаса (K3)", value: K3, unit: "" },
+      { label: "Ёмкость одного огнетушителя/баллона", value: cartridge, unit: "кг" },
+    ],
+    results: result ? [
+      { label: "Требуемое количество порошка (M)", value: result.M.toFixed(1), unit: "кг" },
+      { label: "Количество огнетушителей/баллонов (N)", value: String(result.N), unit: "шт." },
+    ] : [],
+  })
+
+  return (
+    <div className="grid gap-10 md:grid-cols-2 md:gap-16">
+      <div>
+        <FormulaBox
+          formula="M = Sп × Jн × τ × K3"
+          params={[
+            { sym: "M", desc: "Требуемое количество огнетушащего порошка, кг" },
+            { sym: "Sп", desc: "Площадь пожара, м²" },
+            { sym: "Jн", desc: "Нормативная интенсивность подачи порошка, кг/(м²·с)" },
+            { sym: "τ", desc: "Расчётное время тушения, с (обычно 60 с)" },
+            { sym: "K3", desc: "Коэффициент запаса на неполноту тушения и потери" },
+          ]}
+        />
+        <div className="mt-5 rounded-lg border border-foreground/10 p-4">
+          <p className="font-mono text-xs text-foreground/40 uppercase tracking-widest mb-2">Справочные интенсивности Jн</p>
+          <div className="space-y-1 text-xs text-foreground/60 font-mono">
+            {POWDER_MATERIALS.map(m => (
+              <div key={m.key} className="flex justify-between gap-2">
+                <span>{m.label}</span>
+                <span className="shrink-0">{m.Jn.toFixed(2)} кг/(м²·с)</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-5">
+        <div>
+          <label className="mb-2 block font-mono text-xs text-foreground/60">Горящий материал / объект</label>
+          <div className="flex flex-wrap gap-2">
+            {POWDER_MATERIALS.map(m => (
+              <button key={m.key} onClick={() => selectMaterial(m.key)}
+                className={`rounded-lg border px-3 py-2 font-sans text-xs transition-all ${material === m.key ? "border-foreground bg-foreground text-background" : "border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground"}`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <NumInput label="Площадь пожара — Sп, м²" value={Sp} onChange={(v) => { setSp(v); setCalculated(false); setResult(null) }} placeholder="Например: 20" />
+
+        <div className="grid grid-cols-2 gap-4">
+          <NumInput label="Интенсивность — Jн, кг/(м²·с)" value={Jn} onChange={(v) => { setJn(v); setCalculated(false); setResult(null) }} placeholder="0.30" />
+          <NumInput label="Время тушения — τ, с" value={tau} onChange={(v) => { setTau(v); setCalculated(false); setResult(null) }} placeholder="60" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <NumInput label="Коэффициент запаса — K3" value={K3} onChange={(v) => { setK3(v); setCalculated(false); setResult(null) }} placeholder="2.0" />
+          <NumInput label="Ёмкость 1 огнетушителя, кг" value={cartridge} onChange={(v) => { setCartridge(v); setCalculated(false); setResult(null) }} placeholder="5" />
+        </div>
+
+        <CalcButtons onCalc={calc} onReset={reset} disabled={!isReady} showReset={calculated} />
+
+        {result && (
+          <ResultBox>
+            <ResultRow label="Требуемое количество порошка M" value={result.M.toFixed(1)} unit="кг" />
+            <div className="border-t border-foreground/10 pt-2">
+              <ResultRow label="Количество огнетушителей/баллонов N" value={String(result.N)} unit="шт." />
+            </div>
+            <ExportButtons data={getExportData()} />
+          </ResultBox>
+        )}
+      </div>
+    </div>
+  )
+}
