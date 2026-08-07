@@ -118,6 +118,11 @@ export default function RouteMap() {
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [pdfThumbs, setPdfThumbs] = useState<string[]>([])
   const [pdfPickerOpen, setPdfPickerOpen] = useState(false)
+
+  // Документ: имя файла и признак несохранённых изменений
+  const [docName, setDocName] = useState("Маршрутная_карта")
+  const [dirty, setDirty] = useState(false)
+  const docInputRef = useRef<HTMLInputElement>(null)
   const pdfDocRef = useRef<{ numPages: number; getPage: (n: number) => Promise<any> } | null>(null)
 
   // Ref предпросмотра А3 для экспорта
@@ -528,6 +533,115 @@ export default function RouteMap() {
     rows, devRole, devName,
   ])
 
+  // Помечаем документ изменённым при правках
+  const firstRender = useRef(true)
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return }
+    setDirty(true)
+  }, [agree, approve, titleLines, rows, devRole, devName, imageDataUrl, canvasSnapshot, orientation])
+
+  // Предупреждение о несохранённых изменениях
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = "" }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [dirty])
+
+  // ── Сохранение / открытие документа в формате .rmap ──────────────────────────
+  const buildDocument = useCallback(() => ({
+    format: "route-map",
+    version: 1,
+    savedAt: new Date().toISOString(),
+    orientation,
+    agree,
+    approve,
+    titleLines,
+    rows,
+    devRole,
+    devName,
+    imageDataUrl,
+    canvasSnapshot,
+    canvasNaturalW,
+    canvasNaturalH,
+  }), [orientation, agree, approve, titleLines, rows, devRole, devName, imageDataUrl, canvasSnapshot, canvasNaturalW, canvasNaturalH])
+
+  const writeFile = (name: string) => {
+    const blob = new Blob([JSON.stringify(buildDocument())], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.download = name.endsWith(".rmap") ? name : `${name}.rmap`
+    link.href = url
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    setDocName(link.download.replace(/\.rmap$/, ""))
+    setDirty(false)
+  }
+
+  const saveDocument = () => writeFile(docName || "Маршрутная_карта")
+
+  const saveDocumentAs = () => {
+    const name = prompt("Название документа:", docName || "Маршрутная_карта")
+    if (name && name.trim()) writeFile(name.trim())
+  }
+
+  const openDocument = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ""
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const d = JSON.parse(ev.target?.result as string)
+        if (d.format !== "route-map") throw new Error("bad format")
+        setOrientation(d.orientation ?? "landscape")
+        setAgree(d.agree)
+        setApprove(d.approve)
+        setTitleLines(d.titleLines ?? [])
+        setRows(d.rows ?? [])
+        setDevRole(d.devRole ?? "")
+        setDevName(d.devName ?? "")
+        setCanvasNaturalW(d.canvasNaturalW ?? 1200)
+        setCanvasNaturalH(d.canvasNaturalH ?? 800)
+        setImageDataUrl(d.imageDataUrl ?? null)
+        setCanvasSnapshot(d.canvasSnapshot ?? null)
+        setDocName(file.name.replace(/\.rmap$/i, ""))
+        setDirty(false)
+        setActiveTab("editor")
+
+        // Восстанавливаем рисунок на canvas
+        setTimeout(() => {
+          const cv = canvasRef.current
+          if (!cv) return
+          cv.width = d.canvasNaturalW ?? 1200
+          cv.height = d.canvasNaturalH ?? 800
+          const ctx = cv.getContext("2d")
+          ctx?.clearRect(0, 0, cv.width, cv.height)
+          if (d.canvasSnapshot) {
+            const img = new Image()
+            img.onload = () => ctx?.drawImage(img, 0, 0)
+            img.src = d.canvasSnapshot
+          }
+        }, 120)
+      } catch {
+        alert("Не удалось открыть файл. Выберите документ формата .rmap")
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  // Горячие клавиши: Ctrl+S — сохранить, Ctrl+Shift+S — сохранить как, Ctrl+O — открыть
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      const k = e.key.toLowerCase()
+      if (k === "s") { e.preventDefault(); e.shiftKey ? saveDocumentAs() : saveDocument() }
+      if (k === "o") { e.preventDefault(); docInputRef.current?.click() }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  })
+
   // ── Экспорт PNG ──────────────────────────────────────────────────────────────
   const exportPNG = async () => {
     setExporting("png")
@@ -601,10 +715,39 @@ export default function RouteMap() {
           <span className="font-sans text-sm hidden sm:inline">Назад</span>
         </button>
         <div className="flex flex-col items-center">
-          <span className="font-sans text-sm font-semibold">Маршрутная карта</span>
+          <span className="font-sans text-sm font-semibold">
+            {docName}{dirty && <span className="text-amber-400" title="Есть несохранённые изменения"> •</span>}
+          </span>
           <span className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Проф. служба</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Открыть / Сохранить / Сохранить как */}
+          <button
+            onClick={() => docInputRef.current?.click()}
+            title="Открыть документ (.rmap)"
+            className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/60 hover:text-foreground transition-colors"
+          >
+            <Icon name="FolderOpen" size={13} />
+            <span className="hidden md:inline">Открыть</span>
+          </button>
+          <input ref={docInputRef} type="file" accept=".rmap,application/json" onChange={openDocument} className="hidden" />
+          <button
+            onClick={saveDocument}
+            title="Сохранить документ"
+            className="flex items-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-300 hover:bg-blue-500/20 transition-colors"
+          >
+            <Icon name="Save" size={13} />
+            <span className="hidden md:inline">Сохранить</span>
+          </button>
+          <button
+            onClick={saveDocumentAs}
+            title="Сохранить как…"
+            className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/60 hover:text-foreground transition-colors"
+          >
+            <Icon name="FilePlus" size={13} />
+            <span className="hidden lg:inline">Сохранить как</span>
+          </button>
+          <div className="w-px h-5 bg-foreground/15 mx-0.5" />
           {/* Переключатель ориентации */}
           <button
             onClick={() => setOrientation(o => o === "landscape" ? "portrait" : "landscape")}
@@ -614,26 +757,24 @@ export default function RouteMap() {
             <Icon name={orientation === "landscape" ? "RectangleHorizontal" : "RectangleVertical"} size={13} />
             <span className="hidden sm:inline">{orientLabel}</span>
           </button>
-          {activeTab === "preview" && (
-            <>
-              <button
-                onClick={exportPNG}
-                disabled={!!exporting}
-                className="flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
-              >
-                <Icon name="Image" size={13} />
-                {exporting === "png" ? "Сохранение..." : "PNG"}
-              </button>
-              <button
-                onClick={exportPDF}
-                disabled={!!exporting}
-                className="flex items-center gap-1.5 rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-              >
-                <Icon name="FileDown" size={13} />
-                {exporting === "pdf" ? "Сохранение..." : "PDF А3"}
-              </button>
-            </>
-          )}
+          <button
+            onClick={exportPNG}
+            disabled={!!exporting}
+            title="Экспорт в PNG"
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+          >
+            <Icon name="Image" size={13} />
+            <span className="hidden sm:inline">{exporting === "png" ? "Сохранение..." : "PNG"}</span>
+          </button>
+          <button
+            onClick={exportPDF}
+            disabled={!!exporting}
+            title="Экспорт в PDF А3"
+            className="flex items-center gap-1.5 rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+          >
+            <Icon name="FileDown" size={13} />
+            <span className="hidden sm:inline">{exporting === "pdf" ? "Сохранение..." : "PDF А3"}</span>
+          </button>
         </div>
       </nav>
 
