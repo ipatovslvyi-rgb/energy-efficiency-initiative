@@ -402,27 +402,45 @@ export default function RouteMap() {
     const fontSize = (n: number) => n * s
 
     // ── СОГЛАСОВАНО / УТВЕРЖДАЮ ──
-    const headerH = 80 * s
+    const headerH = 104 * s
+    const lh = 14 * s          // высота строки
+    const sigW = innerW * 0.15 // длина линии для живой подписи
+    const gap = 6 * s
+    const sigY = curY + 3.9 * lh   // линия подписи
+    const nameY = curY + 3.35 * lh // ФИО на уровне линии
+    const dateY = curY + 5.0 * lh  // дата под подписью
+
     ctx.textBaseline = "top"
-    ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
     ctx.fillStyle = "#000"
+
+    // Левый блок — СОГЛАСОВАНО
+    ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
     ctx.fillText("СОГЛАСОВАНО", ML, curY)
     ctx.font = `${fontSize(10)}px "Times New Roman"`
-    const agreeLines = [agree.role, agree.org, agree.name]
-    agreeLines.forEach((t, i) => ctx.fillText(t, ML, curY + (i + 1) * 14 * s))
+    ctx.fillText(agree.role, ML, curY + lh)
+    ctx.fillText(agree.org, ML, curY + 2 * lh)
     ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
-    ctx.beginPath(); ctx.moveTo(ML, curY + 4 * 14 * s); ctx.lineTo(ML + innerW * 0.38, curY + 4 * 14 * s); ctx.stroke()
-    ctx.fillText(agree.date, ML, curY + (4 * 14 + 2) * s)
+    ctx.beginPath(); ctx.moveTo(ML, sigY); ctx.lineTo(ML + sigW, sigY); ctx.stroke()
+    ctx.fillText(agree.name, ML + sigW + gap, nameY)
+    ctx.fillText(agree.date, ML, dateY)
 
+    // Правый блок — УТВЕРЖДАЮ
+    const R = ML + innerW
     ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
     ctx.textAlign = "right"
-    ctx.fillText("УТВЕРЖДАЮ", ML + innerW, curY)
+    ctx.fillText("УТВЕРЖДАЮ", R, curY)
     ctx.font = `${fontSize(10)}px "Times New Roman"`
-    const appLines = [approve.role, approve.org, approve.name]
-    appLines.forEach((t, i) => ctx.fillText(t, ML + innerW, curY + (i + 1) * 14 * s))
+    ctx.fillText(approve.role, R, curY + lh)
+    ctx.fillText(approve.org, R, curY + 2 * lh)
+    ctx.fillText(approve.name, R, nameY)
+    const nameW = ctx.measureText(approve.name).width
     ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
-    ctx.beginPath(); ctx.moveTo(ML + innerW - innerW * 0.38, curY + 4 * 14 * s); ctx.lineTo(ML + innerW, curY + 4 * 14 * s); ctx.stroke()
-    ctx.fillText(approve.date, ML + innerW, curY + (4 * 14 + 2) * s)
+    ctx.beginPath()
+    ctx.moveTo(R - nameW - gap - sigW, sigY)
+    ctx.lineTo(R - nameW - gap, sigY)
+    ctx.stroke()
+    ctx.fillText(approve.date, R, dateY)
+
     ctx.textAlign = "left"
     curY += headerH
 
@@ -936,17 +954,21 @@ export default function RouteMap() {
                   <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>СОГЛАСОВАНО</div>
                   <div>{agree.role}</div>
                   <div>{agree.org}</div>
-                  <div>{agree.name}</div>
-                  <div style={{ borderTop: "0.5px solid #555", width: "80%", marginTop: 2, marginBottom: 1 }} />
-                  <div>{agree.date}</div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 8 }}>
+                    <div style={{ borderBottom: "0.5px solid #555", width: 90, height: 12 }} />
+                    <div style={{ lineHeight: 1.2 }}>{agree.name}</div>
+                  </div>
+                  <div style={{ marginTop: 4 }}>{agree.date}</div>
                 </div>
                 <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5, textAlign: "right" }}>
                   <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>УТВЕРЖДАЮ</div>
                   <div>{approve.role}</div>
                   <div>{approve.org}</div>
-                  <div>{approve.name}</div>
-                  <div style={{ borderTop: "0.5px solid #555", width: "80%", marginTop: 2, marginBottom: 1, marginLeft: "auto" }} />
-                  <div>{approve.date}</div>
+                  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
+                    <div style={{ borderBottom: "0.5px solid #555", width: 90, height: 12 }} />
+                    <div style={{ lineHeight: 1.2 }}>{approve.name}</div>
+                  </div>
+                  <div style={{ marginTop: 4 }}>{approve.date}</div>
                 </div>
               </div>
 
