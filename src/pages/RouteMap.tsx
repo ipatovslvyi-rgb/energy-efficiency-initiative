@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { GrainOverlay } from "@/components/grain-overlay"
 import Icon from "@/components/ui/icon"
 import jsPDF from "jspdf"
+import { ImageCropper } from "@/components/image-cropper"
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
 interface ApprovalBlock {
@@ -112,30 +113,70 @@ export default function RouteMap() {
   const imgContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Загрузка PDF и обрезка изображения
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
+
   // Ref предпросмотра А3 для экспорта
   const previewRef = useRef<HTMLDivElement>(null)
 
-  // Загрузка изображения — сохраняем как dataURL
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Применение нового изображения (общая логика)
+  const applyImage = useCallback((dataUrl: string) => {
+    const img = new Image()
+    img.onload = () => {
+      setCanvasNaturalW(img.naturalWidth)
+      setCanvasNaturalH(img.naturalHeight)
+      setImageDataUrl(dataUrl)
+      setCanvasSnapshot(null)
+      setTimeout(() => {
+        const cv = canvasRef.current; if (!cv) return
+        cv.width = img.naturalWidth
+        cv.height = img.naturalHeight
+        cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height)
+      }, 80)
+    }
+    img.src = dataUrl
+  }, [])
+
+  // Рендер первой страницы PDF в изображение
+  const renderPdfToImage = useCallback(async (file: File): Promise<string> => {
+    const pdfjs = await import("pdfjs-dist")
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+    const buf = await file.arrayBuffer()
+    const pdf = await pdfjs.getDocument({ data: buf }).promise
+    const page = await pdf.getPage(1)
+    const viewport = page.getViewport({ scale: 2.5 })
+    const cv = document.createElement("canvas")
+    cv.width = viewport.width
+    cv.height = viewport.height
+    const ctx = cv.getContext("2d")!
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, cv.width, cv.height)
+    await page.render({ canvasContext: ctx, viewport }).promise
+    return cv.toDataURL("image/png")
+  }, [])
+
+  // Загрузка изображения или PDF — сохраняем как dataURL
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string
-      const img = new Image()
-      img.onload = () => {
-        setCanvasNaturalW(img.naturalWidth)
-        setCanvasNaturalH(img.naturalHeight)
-        setImageDataUrl(dataUrl)
-        setTimeout(() => {
-          const cv = canvasRef.current; if (!cv) return
-          cv.width = img.naturalWidth
-          cv.height = img.naturalHeight
-          cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height)
-        }, 80)
+    e.target.value = ""
+
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      setPdfLoading(true)
+      try {
+        const dataUrl = await renderPdfToImage(file)
+        applyImage(dataUrl)
+      } catch {
+        alert("Не удалось прочитать PDF. Попробуйте другой файл или загрузите изображение.")
+      } finally {
+        setPdfLoading(false)
       }
-      img.src = dataUrl
+      return
     }
+
+    const reader = new FileReader()
+    reader.onload = (ev) => applyImage(ev.target?.result as string)
     reader.readAsDataURL(file)
   }
 
@@ -624,12 +665,21 @@ export default function RouteMap() {
               <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Схема маршрута</p>
-                  <button onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/70 hover:text-foreground transition-colors">
-                    <Icon name="ImagePlus" size={13} />
-                    {imageDataUrl ? "Заменить" : "Загрузить карту"}
-                  </button>
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <div className="flex items-center gap-2">
+                    {imageDataUrl && (
+                      <button onClick={() => setCropSrc(imageDataUrl)}
+                        className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/70 hover:text-foreground transition-colors">
+                        <Icon name="Crop" size={13} />
+                        Обрезать
+                      </button>
+                    )}
+                    <button onClick={() => fileInputRef.current?.click()} disabled={pdfLoading}
+                      className="flex items-center gap-1.5 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/70 hover:text-foreground transition-colors disabled:opacity-40">
+                      <Icon name={pdfLoading ? "Loader" : "ImagePlus"} size={13} />
+                      {pdfLoading ? "Обработка PDF…" : imageDataUrl ? "Заменить" : "Загрузить карту / PDF"}
+                    </button>
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.pdf" onChange={handleImageUpload} className="hidden" />
                 </div>
 
                 {/* Панель инструментов */}
@@ -719,10 +769,11 @@ export default function RouteMap() {
                       </div>
                     </>
                   ) : (
-                    <button onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-col items-center justify-center w-full h-52 gap-3 text-foreground/30 hover:text-foreground/50 transition-colors">
-                      <Icon name="Map" size={44} />
-                      <span className="text-sm">Загрузить карту или спутниковый снимок</span>
+                    <button onClick={() => fileInputRef.current?.click()} disabled={pdfLoading}
+                      className="flex flex-col items-center justify-center w-full h-52 gap-3 text-foreground/30 hover:text-foreground/50 transition-colors disabled:opacity-40">
+                      <Icon name={pdfLoading ? "Loader" : "Map"} size={44} />
+                      <span className="text-sm">{pdfLoading ? "Обработка PDF…" : "Загрузить карту, снимок или PDF"}</span>
+                      {!pdfLoading && <span className="text-[11px] text-foreground/25">PNG · JPG · PDF</span>}
                     </button>
                   )}
                 </div>
@@ -954,6 +1005,14 @@ export default function RouteMap() {
           </div>
         )}
       </div>
+
+      {cropSrc && (
+        <ImageCropper
+          src={cropSrc}
+          onCancel={() => setCropSrc(null)}
+          onApply={(dataUrl) => { applyImage(dataUrl); setCropSrc(null) }}
+        />
+      )}
     </div>
   )
 }
