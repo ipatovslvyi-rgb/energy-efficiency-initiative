@@ -116,6 +116,9 @@ export default function RouteMap() {
   // Загрузка PDF и обрезка изображения
   const [pdfLoading, setPdfLoading] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [pdfThumbs, setPdfThumbs] = useState<string[]>([])
+  const [pdfPickerOpen, setPdfPickerOpen] = useState(false)
+  const pdfDocRef = useRef<{ numPages: number; getPage: (n: number) => Promise<any> } | null>(null)
 
   // Ref предпросмотра А3 для экспорта
   const previewRef = useRef<HTMLDivElement>(null)
@@ -138,14 +141,12 @@ export default function RouteMap() {
     img.src = dataUrl
   }, [])
 
-  // Рендер первой страницы PDF в изображение
-  const renderPdfToImage = useCallback(async (file: File): Promise<string> => {
-    const pdfjs = await import("pdfjs-dist")
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
-    const buf = await file.arrayBuffer()
-    const pdf = await pdfjs.getDocument({ data: buf }).promise
-    const page = await pdf.getPage(1)
-    const viewport = page.getViewport({ scale: 2.5 })
+  // Рендер конкретной страницы открытого PDF в изображение
+  const renderPdfPage = useCallback(async (pageNum: number, scale = 2.5): Promise<string> => {
+    const pdf = pdfDocRef.current
+    if (!pdf) return ""
+    const page = await pdf.getPage(pageNum)
+    const viewport = page.getViewport({ scale })
     const cv = document.createElement("canvas")
     cv.width = viewport.width
     cv.height = viewport.height
@@ -165,8 +166,23 @@ export default function RouteMap() {
     if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
       setPdfLoading(true)
       try {
-        const dataUrl = await renderPdfToImage(file)
-        applyImage(dataUrl)
+        const pdfjs = await import("pdfjs-dist")
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+        const buf = await file.arrayBuffer()
+        const pdf = await pdfjs.getDocument({ data: buf }).promise
+        pdfDocRef.current = pdf
+
+        if (pdf.numPages === 1) {
+          applyImage(await renderPdfPage(1))
+        } else {
+          // Готовим превью всех страниц для выбора
+          const thumbs: string[] = []
+          for (let i = 1; i <= pdf.numPages; i++) {
+            thumbs.push(await renderPdfPage(i, 0.5))
+          }
+          setPdfThumbs(thumbs)
+          setPdfPickerOpen(true)
+        }
       } catch {
         alert("Не удалось прочитать PDF. Попробуйте другой файл или загрузите изображение.")
       } finally {
@@ -178,6 +194,18 @@ export default function RouteMap() {
     const reader = new FileReader()
     reader.onload = (ev) => applyImage(ev.target?.result as string)
     reader.readAsDataURL(file)
+  }
+
+  // Выбор страницы из многостраничного PDF
+  const choosePdfPage = async (pageNum: number) => {
+    setPdfLoading(true)
+    try {
+      applyImage(await renderPdfPage(pageNum))
+      setPdfPickerOpen(false)
+      setPdfThumbs([])
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   // Инициализация canvas при смене изображения
@@ -1005,6 +1033,45 @@ export default function RouteMap() {
           </div>
         )}
       </div>
+
+      {/* Выбор страницы PDF */}
+      {pdfPickerOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-foreground/15 bg-background p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Icon name="Files" size={18} className="text-foreground/70" />
+                <span className="font-sans text-base font-medium text-foreground">
+                  Выберите страницу — всего {pdfThumbs.length}
+                </span>
+              </div>
+              <button onClick={() => { setPdfPickerOpen(false); setPdfThumbs([]) }}
+                className="text-foreground/40 hover:text-foreground transition-colors">
+                <Icon name="X" size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto pr-1">
+              {pdfThumbs.map((thumb, i) => (
+                <button key={i} onClick={() => choosePdfPage(i + 1)} disabled={pdfLoading}
+                  className="group relative rounded-lg border border-foreground/15 bg-white overflow-hidden hover:border-primary/70 transition-colors disabled:opacity-40">
+                  <img src={thumb} alt={`Страница ${i + 1}`} className="block w-full h-auto" />
+                  <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] text-white">
+                    {i + 1}
+                  </span>
+                  <span className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-primary/20">
+                    <span className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background">Выбрать</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-4 font-mono text-[11px] text-foreground/40 text-center">
+              Нажмите на нужную страницу — она станет схемой маршрута
+            </p>
+          </div>
+        </div>
+      )}
 
       {cropSrc && (
         <ImageCropper
