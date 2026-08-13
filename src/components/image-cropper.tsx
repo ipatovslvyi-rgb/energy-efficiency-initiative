@@ -65,19 +65,25 @@ export function ImageCropper({ src, onApply, onCancel }: { src: string; onApply:
 
   const apply = () => {
     if (!natural.w || !natural.h) return
-    const sx = (box.x / 100) * natural.w
-    const sy = (box.y / 100) * natural.h
-    const sw = (box.w / 100) * natural.w
-    const sh = (box.h / 100) * natural.h
+    // Переводим проценты в пиксели оригинала и подрезаем по границам
+    const sx = Math.max(0, Math.round((box.x / 100) * natural.w))
+    const sy = Math.max(0, Math.round((box.y / 100) * natural.h))
+    const sw = Math.min(natural.w - sx, Math.round((box.w / 100) * natural.w))
+    const sh = Math.min(natural.h - sy, Math.round((box.h / 100) * natural.h))
+    if (sw < 1 || sh < 1) return
     const cv = document.createElement("canvas")
-    cv.width = Math.round(sw)
-    cv.height = Math.round(sh)
+    cv.width = sw
+    cv.height = sh
     const ctx = cv.getContext("2d")!
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = "high"
-    const img = imgRef.current!
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height)
-    onApply(cv.toDataURL("image/png"))
+    // Берём оригинал, а не отмасштабированную превью-копию
+    const src2 = new Image()
+    src2.onload = () => {
+      ctx.drawImage(src2, sx, sy, sw, sh, 0, 0, sw, sh)
+      onApply(cv.toDataURL("image/png"))
+    }
+    src2.src = src
   }
 
   const H = "absolute w-3 h-3 bg-white border border-black/40 rounded-sm"
@@ -95,7 +101,9 @@ export function ImageCropper({ src, onApply, onCancel }: { src: string; onApply:
           </button>
         </div>
 
-        <div ref={wrapRef} className="relative select-none overflow-hidden rounded-lg border border-foreground/15 bg-black/40 max-h-[65vh] flex items-center justify-center">
+        <div className="relative select-none overflow-hidden rounded-lg border border-foreground/15 bg-black/40 max-h-[65vh] flex items-center justify-center">
+          {/* Обёртка облегает изображение — проценты рамки считаются строго по картинке */}
+          <div ref={wrapRef} className="relative inline-block leading-none">
           <img ref={imgRef} src={src} alt="" onLoad={onImgLoad} draggable={false}
             className="block max-h-[65vh] w-auto max-w-full pointer-events-none" />
           <div className="absolute inset-0">
@@ -113,6 +121,7 @@ export function ImageCropper({ src, onApply, onCancel }: { src: string; onApply:
               <div onMouseDown={startDrag("sw")} className={`${H} -left-1.5 -bottom-1.5 cursor-nesw-resize`} />
               <div onMouseDown={startDrag("se")} className={`${H} -right-1.5 -bottom-1.5 cursor-nwse-resize`} />
             </div>
+          </div>
           </div>
         </div>
 
