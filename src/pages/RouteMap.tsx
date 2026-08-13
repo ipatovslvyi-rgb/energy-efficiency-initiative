@@ -20,7 +20,7 @@ interface RouteRow {
   time: string
 }
 
-type DrawTool = "pen" | "eraser"
+type DrawTool = "pen" | "eraser" | "pan"
 type ActiveTab = "editor" | "preview"
 type Orientation = "portrait" | "landscape"
 
@@ -897,6 +897,11 @@ export default function RouteMap() {
                       className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition-colors ${drawTool === "eraser" ? "border-orange-400/60 bg-orange-500/15 text-orange-400" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}>
                       <Icon name="Eraser" size={12} />Ластик
                     </button>
+                    <button onClick={() => setDrawTool(t => t === "pan" ? "pen" : "pan")}
+                      title="Режим прокрутки — можно листать страницу пальцем, не рисуя"
+                      className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition-colors ${drawTool === "pan" ? "border-blue-400/60 bg-blue-500/15 text-blue-300" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}>
+                      <Icon name="Hand" size={12} />Прокрутка
+                    </button>
                     <button onClick={clearCanvas}
                       className="flex items-center gap-1 rounded-lg border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs text-foreground/60 hover:text-red-400 hover:border-red-400/40 transition-colors ml-auto">
                       <Icon name="Trash2" size={12} />Очистить
@@ -916,17 +921,21 @@ export default function RouteMap() {
                       <img src={imageDataUrl} alt="Карта" className="block w-full h-auto pointer-events-none select-none" draggable={false} />
                       <canvas ref={canvasRef}
                         className="absolute inset-0 w-full h-full"
-                        style={{ cursor: "none", touchAction: "none" }}
+                        style={{
+                          cursor: drawTool === "pan" ? "grab" : "none",
+                          touchAction: drawTool === "pan" ? "auto" : "none",
+                          pointerEvents: drawTool === "pan" ? "none" : "auto",
+                        }}
                         onMouseDown={startDraw}
                         onMouseMove={handleMouseMove}
                         onMouseUp={stopDraw}
                         onMouseLeave={stopDraw}
-                        onTouchStart={e => { e.preventDefault(); startDraw(e) }}
-                        onTouchMove={e => { e.preventDefault(); draw(e) }}
+                        onTouchStart={e => { if (drawTool === "pan") return; e.preventDefault(); startDraw(e) }}
+                        onTouchMove={e => { if (drawTool === "pan") return; e.preventDefault(); draw(e) }}
                         onTouchEnd={stopDraw}
                       />
                       {/* Кружок-курсор */}
-                      {cursorVisible && cursorPos && (
+                      {cursorVisible && cursorPos && drawTool !== "pan" && (
                         <div
                           className="pointer-events-none absolute rounded-full"
                           style={{
