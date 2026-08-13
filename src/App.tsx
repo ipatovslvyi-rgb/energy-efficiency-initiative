@@ -17,6 +17,7 @@ import Zvt from "./pages/Zvt";
 import RouteMap from "./pages/RouteMap";
 import NotFound from "./pages/NotFound";
 import { LicenseProvider } from "@/context/license-context";
+import UpdateBanner from "@/components/update-banner";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <UpdateBanner />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />

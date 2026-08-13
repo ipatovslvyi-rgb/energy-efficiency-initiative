@@ -1,70 +1,72 @@
-const CACHE_NAME = 'sds-v7';
+const CACHE_NAME = 'sds-v8';
 
-const PRECACHE = [
-  '/',
-  '/explosion-triangle',
-];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE))
-  );
+self.addEventListener('install', () => {
+  // Новая версия активируется немедленно, не ждёт закрытия вкладок
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const req = event.request;
+  if (req.method !== 'GET') return;
 
-  // Не кэшируем API-запросы к бэкенду и внешним ресурсам
+  const url = new URL(req.url);
+
+  // Бэкенд, шрифты, CDN — всегда напрямую из сети, без кэша
   if (
     url.hostname.includes('functions.poehali.dev') ||
     url.hostname.includes('fonts.googleapis.com') ||
     url.hostname.includes('fonts.gstatic.com') ||
     url.hostname.includes('cdn.poehali.dev')
   ) {
-    event.respondWith(fetch(event.request).catch(() => new Response('', { status: 503 })));
     return;
   }
 
-  // JS/CSS файлы — всегда из сети (чтобы не кешировать старые версии)
-  if (url.pathname.includes('/node_modules/') || url.pathname.match(/\.(js|css)(\?|$)/)) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request).then((r) => r || new Response('', { status: 503 })))
-    );
-    return;
-  }
+  // Чужие домены не трогаем
+  if (url.origin !== self.location.origin) return;
 
-  // Для навигационных запросов — сначала сеть, потом кэш
-  if (event.request.mode === 'navigate') {
+  // HTML-страницы и код приложения — ТОЛЬКО из сети.
+  // Кэш служит исключительно аварийным запасом при отсутствии интернета.
+  const isCode = /\.(js|mjs|css)(\?|$)/.test(url.pathname);
+  if (req.mode === 'navigate' || isCode) {
     event.respondWith(
-      fetch(event.request)
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+          }
           return res;
         })
-        .catch(() => caches.match('/').then((r) => r || new Response('Офлайн', { status: 503 })))
+        .catch(() =>
+          caches.match(req).then((r) =>
+            r || (req.mode === 'navigate' ? caches.match('/') : undefined) ||
+            new Response('Нет соединения', { status: 503 })
+          )
+        )
     );
     return;
   }
 
-  // Для остальной статики — сначала кэш, потом сеть
+  // Картинки, шрифты и прочая статика — сначала кэш (они не меняются)
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.match(req).then((cached) => {
       if (cached) return cached;
-      return fetch(event.request).then((res) => {
-        if (res.status === 200) {
+      return fetch(req).then((res) => {
+        if (res && res.status === 200 && res.type === 'basic') {
           const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then((c) => c.put(req, clone));
         }
         return res;
       });
