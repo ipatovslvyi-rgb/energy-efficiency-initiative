@@ -33,6 +33,15 @@ const MARGIN = { left: 30, top: 20, right: 10, bottom: 20 }
 // Пикселей на мм при 96dpi
 const PX_PER_MM = 96 / 25.4  // ~3.78
 
+// Форматы бумаги для печати (мм)
+const PAPER = {
+  a3: { short: 297,  long: 420,  label: "А3" },
+  a2: { short: 420,  long: 594,  label: "А2" },
+  a1: { short: 594,  long: 841,  label: "А1" },
+  a0: { short: 841,  long: 1189, label: "А0" },
+} as const
+type PaperSize = keyof typeof PAPER
+
 // ── Предустановленные цвета рисования ────────────────────────────────────────
 const DRAW_COLORS = [
   "#FFFF00", "#FF0000", "#00CC00", "#00BFFF",
@@ -52,6 +61,9 @@ export default function RouteMap() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("editor")
   const [exporting, setExporting] = useState<"pdf" | "png" | null>(null)
   const [orientation, setOrientation] = useState<Orientation>("landscape")
+  // Формат печати и разрешение экспорта
+  const [paperSize, setPaperSize] = useState<PaperSize>("a3")
+  const [exportDpi, setExportDpi] = useState(300)
 
   // Размеры листа зависят от ориентации
   const A3_W_MM = orientation === "landscape" ? A3_LONG  : A3_SHORT
@@ -154,11 +166,18 @@ export default function RouteMap() {
   }, [])
 
   // Рендер конкретной страницы открытого PDF в изображение
-  const renderPdfPage = useCallback(async (pageNum: number, scale = 2.5): Promise<string> => {
+  const renderPdfPage = useCallback(async (pageNum: number, scale?: number): Promise<string> => {
     const pdf = pdfDocRef.current
     if (!pdf) return ""
     const page = await pdf.getPage(pageNum)
-    const viewport = page.getViewport({ scale })
+    let s = scale
+    if (s === undefined) {
+      // Автоподбор: целимся в ~4500px по длинной стороне (хватает на А0 при 300dpi)
+      const base = page.getViewport({ scale: 1 })
+      const longSide = Math.max(base.width, base.height)
+      s = Math.min(8, Math.max(2.5, 4500 / longSide))
+    }
+    const viewport = page.getViewport({ scale: s })
     const cv = document.createElement("canvas")
     cv.width = viewport.width
     cv.height = viewport.height
@@ -354,6 +373,8 @@ export default function RouteMap() {
         composite.width = img.naturalWidth
         composite.height = img.naturalHeight
         const ctx = composite.getContext("2d")!
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = "high"
         ctx.drawImage(img, 0, 0)
         if (canvasSnapshot) {
           const overlay = new Image()
@@ -427,10 +448,23 @@ export default function RouteMap() {
   }, [activeTab, getCompositeImageUrl])
 
   // ── Рендер документа напрямую через Canvas API (без html2canvas) ─────────────
-  const renderDocumentCanvas = useCallback(async (): Promise<HTMLCanvasElement> => {
-    const SCALE = 3
-    const W = A3_W_PX * SCALE
-    const H = A3_H_PX * SCALE
+  // targetMM — реальный размер печати по длинной стороне (420 = А3, 1189 = А0)
+  const renderDocumentCanvas = useCallback(async (targetLongMM = A3_LONG, dpi = 300): Promise<HTMLCanvasElement> => {
+    // Сколько пикселей нужно на длинную сторону при заданном DPI
+    const neededLongPx = (targetLongMM / 25.4) * dpi
+    const baseLongPx = Math.max(A3_W_PX, A3_H_PX)
+    let SCALE = neededLongPx / baseLongPx
+
+    // Ограничения браузера: сторона ≤ 16384px, всего ≤ ~250 млн пикселей
+    const maxSide = 16384
+    SCALE = Math.min(SCALE, maxSide / Math.max(A3_W_PX, A3_H_PX))
+    const maxPixels = 250_000_000
+    if (A3_W_PX * A3_H_PX * SCALE * SCALE > maxPixels) {
+      SCALE = Math.sqrt(maxPixels / (A3_W_PX * A3_H_PX))
+    }
+
+    const W = Math.round(A3_W_PX * SCALE)
+    const H = Math.round(A3_H_PX * SCALE)
     const s = SCALE
 
     const ML = CONTENT_L * s
@@ -442,12 +476,14 @@ export default function RouteMap() {
     const cv = document.createElement("canvas")
     cv.width = W
     cv.height = H
-    const ctx = cv.getContext("2d")!
+    const ctx = cv.getContext("2d", { alpha: false })!
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = "high"
 
     ctx.fillStyle = "#ffffff"
     ctx.fillRect(0, 0, W, H)
     ctx.strokeStyle = "#000"
-    ctx.lineWidth = 1
+    ctx.lineWidth = 1 * s
     ctx.strokeRect(ML - 2, MT - 2, innerW + 4, (H - MT - MB) + 4)
 
     let curY = MT
@@ -471,7 +507,7 @@ export default function RouteMap() {
     ctx.font = `${fontSize(10)}px "Times New Roman"`
     ctx.fillText(agree.role, ML, curY + lh)
     ctx.fillText(agree.org, ML, curY + 2 * lh)
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
+    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
     ctx.beginPath(); ctx.moveTo(ML, sigY); ctx.lineTo(ML + sigW, sigY); ctx.stroke()
     ctx.fillText(agree.name, ML + sigW + gap, nameY)
     ctx.fillText(agree.date, ML, dateY)
@@ -486,7 +522,7 @@ export default function RouteMap() {
     ctx.fillText(approve.org, R, curY + 2 * lh)
     ctx.fillText(approve.name, R, nameY)
     const nameW = ctx.measureText(approve.name).width
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
+    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
     ctx.beginPath()
     ctx.moveTo(R - nameW - gap - sigW, sigY)
     ctx.lineTo(R - nameW - gap, sigY)
@@ -512,7 +548,7 @@ export default function RouteMap() {
     const signH = 26 * s
     const imgAreaH = H - curY - MB - tableH - signH - 8 * s
 
-    ctx.strokeStyle = "#999"; ctx.lineWidth = 1
+    ctx.strokeStyle = "#999"; ctx.lineWidth = 1 * s
     ctx.strokeRect(ML, curY, innerW, imgAreaH)
 
     if (compositeUrl && compositeNatW > 0) {
@@ -536,7 +572,7 @@ export default function RouteMap() {
     const tableX = ML + (innerW - tableW) / 2
     const cols = [tableW * 0.07, tableW * 0.12, tableW * 0.46, tableW * 0.35]
     const colX = [tableX, tableX + cols[0], tableX + cols[0] + cols[1], tableX + cols[0] + cols[1] + cols[2]]
-    ctx.strokeStyle = "#000"; ctx.lineWidth = 0.5
+    ctx.strokeStyle = "#000"; ctx.lineWidth = 0.5 * s
     ctx.font = `${fontSize(9)}px "Times New Roman"`; ctx.fillStyle = "#000"
 
     const drawCell = (x: number, y: number, w: number, h: number, text: string, align: "left"|"center"|"right" = "center") => {
@@ -556,7 +592,7 @@ export default function RouteMap() {
       ctx.strokeRect(colX[1], curY, cols[1], tableRowH)
       const sw = 28 * s, sh = 8 * s, sx = colX[1] + (cols[1] - sw) / 2, sy = curY + (tableRowH - sh) / 2
       ctx.fillStyle = row.color; ctx.fillRect(sx, sy, sw, sh)
-      ctx.strokeStyle = "#bbb"; ctx.lineWidth = 0.5; ctx.strokeRect(sx, sy, sw, sh)
+      ctx.strokeStyle = "#bbb"; ctx.lineWidth = 0.5 * s; ctx.strokeRect(sx, sy, sw, sh)
       ctx.strokeStyle = "#000"; ctx.fillStyle = "#000"
       drawCell(colX[2], curY, cols[2], tableRowH, row.length)
       drawCell(colX[3], curY, cols[3], tableRowH, row.time); curY += tableRowH
@@ -567,7 +603,7 @@ export default function RouteMap() {
     ctx.font = `${fontSize(10)}px "Times New Roman"`; ctx.fillStyle = "#000"
     const c1w = innerW * 0.35, c2w = innerW * 0.20
     ctx.fillText(devRole, ML, curY + 12 * s)
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5
+    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
     ctx.beginPath(); ctx.moveTo(ML, curY + 16 * s); ctx.lineTo(ML + c1w * 0.85, curY + 16 * s); ctx.stroke()
     ctx.beginPath(); ctx.moveTo(ML + c1w, curY + 16 * s); ctx.lineTo(ML + c1w + c2w, curY + 16 * s); ctx.stroke()
     ctx.fillText(devName, ML + c1w + c2w, curY + 12 * s)
@@ -601,6 +637,8 @@ export default function RouteMap() {
     version: 1,
     savedAt: new Date().toISOString(),
     orientation,
+    paperSize,
+    exportDpi,
     agree,
     approve,
     titleLines,
@@ -611,7 +649,7 @@ export default function RouteMap() {
     canvasSnapshot,
     canvasNaturalW,
     canvasNaturalH,
-  }), [orientation, agree, approve, titleLines, rows, devRole, devName, imageDataUrl, canvasSnapshot, canvasNaturalW, canvasNaturalH])
+  }), [orientation, paperSize, exportDpi, agree, approve, titleLines, rows, devRole, devName, imageDataUrl, canvasSnapshot, canvasNaturalW, canvasNaturalH])
 
   const writeFile = (name: string) => {
     const blob = new Blob([JSON.stringify(buildDocument())], { type: "application/json" })
@@ -642,6 +680,8 @@ export default function RouteMap() {
         const d = JSON.parse(ev.target?.result as string)
         if (d.format !== "route-map") throw new Error("bad format")
         setOrientation(d.orientation ?? "landscape")
+        setPaperSize(d.paperSize ?? "a3")
+        setExportDpi(d.exportDpi ?? 300)
         setAgree(d.agree)
         setApprove(d.approve)
         setTitleLines(d.titleLines ?? [])
@@ -700,24 +740,34 @@ export default function RouteMap() {
   const exportPNG = async () => {
     setExporting("png")
     try {
-      const canvas = await renderDocumentCanvas()
+      const fmt = PAPER[paperSize]
+      const canvas = await renderDocumentCanvas(fmt.long, exportDpi)
       const link = document.createElement("a")
-      link.download = "Маршрутная_карта.png"
+      link.download = `${docName}_${paperSize.toUpperCase()}_${exportDpi}dpi.png`
       link.href = canvas.toDataURL("image/png")
       link.click()
     } finally { setExporting(null) }
   }
 
-  // ── Экспорт PDF А3 ────────────────────────────────────────────────────────────
+  // ── Экспорт PDF в выбранном формате ──────────────────────────────────────────
   const exportPDF = async () => {
     setExporting("pdf")
     try {
-      const canvas = await renderDocumentCanvas()
-      const imgData = canvas.toDataURL("image/jpeg", 0.95)
+      const fmt = PAPER[paperSize]
+      const canvas = await renderDocumentCanvas(fmt.long, exportDpi)
+      // PNG без потерь — не мылит тонкие линии и мелкий текст, в отличие от JPEG
+      const imgData = canvas.toDataURL("image/png")
       const pdfOrientation = orientation === "landscape" ? "landscape" : "portrait"
-      const pdf = new jsPDF({ orientation: pdfOrientation, unit: "mm", format: "a3" })
-      pdf.addImage(imgData, "JPEG", 0, 0, A3_W_MM, A3_H_MM)
-      pdf.save("Маршрутная_карта.pdf")
+      const wMM = orientation === "landscape" ? fmt.long : fmt.short
+      const hMM = orientation === "landscape" ? fmt.short : fmt.long
+      const pdf = new jsPDF({
+        orientation: pdfOrientation,
+        unit: "mm",
+        format: [wMM, hMM],
+        compress: true,
+      })
+      pdf.addImage(imgData, "PNG", 0, 0, wMM, hMM, undefined, "NONE")
+      pdf.save(`${docName}_${paperSize.toUpperCase()}.pdf`)
     } finally { setExporting(null) }
   }
 
@@ -811,6 +861,28 @@ export default function RouteMap() {
             <Icon name={orientation === "landscape" ? "RectangleHorizontal" : "RectangleVertical"} size={13} />
             <span className="hidden sm:inline">{orientLabel}</span>
           </button>
+          {/* Формат печати */}
+          <select
+            value={paperSize}
+            onChange={e => setPaperSize(e.target.value as PaperSize)}
+            title="Формат бумаги для печати"
+            className="rounded-lg border border-foreground/20 bg-background px-2 py-1.5 text-xs text-foreground/70 hover:text-foreground transition-colors cursor-pointer"
+          >
+            {(Object.keys(PAPER) as PaperSize[]).map(k => (
+              <option key={k} value={k}>{PAPER[k].label}</option>
+            ))}
+          </select>
+          <select
+            value={exportDpi}
+            onChange={e => setExportDpi(+e.target.value)}
+            title="Разрешение печати"
+            className="rounded-lg border border-foreground/20 bg-background px-2 py-1.5 text-xs text-foreground/70 hover:text-foreground transition-colors cursor-pointer"
+          >
+            <option value={150}>150 dpi</option>
+            <option value={200}>200 dpi</option>
+            <option value={300}>300 dpi</option>
+            <option value={400}>400 dpi</option>
+          </select>
           <button
             onClick={exportPNG}
             disabled={!!exporting}
@@ -823,11 +895,11 @@ export default function RouteMap() {
           <button
             onClick={exportPDF}
             disabled={!!exporting}
-            title="Экспорт в PDF А3"
+            title={`Экспорт в PDF ${PAPER[paperSize].label}`}
             className="flex items-center gap-1.5 rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
           >
             <Icon name="FileDown" size={13} />
-            <span className="hidden sm:inline">{exporting === "pdf" ? "Сохранение..." : "PDF А3"}</span>
+            <span className="hidden sm:inline">{exporting === "pdf" ? "Сохранение..." : `PDF ${PAPER[paperSize].label}`}</span>
           </button>
         </div>
       </nav>
@@ -922,6 +994,28 @@ export default function RouteMap() {
                   </div>
                   <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.pdf" onChange={handleImageUpload} className="hidden" />
                 </div>
+
+                {/* Оценка качества исходной схемы под выбранный формат */}
+                {imageDataUrl && (() => {
+                  const fmt = PAPER[paperSize]
+                  // Ширина области схемы на печати в мм
+                  const printW = (orientation === "landscape" ? fmt.long : fmt.short) - MARGIN.left - MARGIN.right
+                  const realDpi = Math.round(canvasNaturalW / (printW / 25.4))
+                  const ok = realDpi >= 250, mid = realDpi >= 150
+                  return (
+                    <div className={`mb-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${ok ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" : mid ? "border-amber-400/30 bg-amber-500/10 text-amber-300" : "border-red-400/30 bg-red-500/10 text-red-300"}`}>
+                      <Icon name={ok ? "CircleCheck" : "TriangleAlert"} size={14} className="mt-0.5 shrink-0" />
+                      <span>
+                        Схема: {canvasNaturalW}×{canvasNaturalH} px — это ≈{realDpi} dpi при печати на {fmt.label}.{" "}
+                        {ok
+                          ? "Качество отличное."
+                          : mid
+                            ? "Приемлемо, но для чёткой печати загрузите схему в большем разрешении (лучше исходный PDF)."
+                            : `Слишком мало. Для ${fmt.label} нужна схема шириной от ${Math.round((printW / 25.4) * 250)} px — загрузите исходный PDF или скан покрупнее.`}
+                      </span>
+                    </div>
+                  )
+                })()}
 
                 {/* Панель инструментов */}
                 {imageDataUrl && (

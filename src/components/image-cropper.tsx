@@ -73,6 +73,8 @@ export function ImageCropper({ src, onApply, onCancel }: { src: string; onApply:
     cv.width = Math.round(sw)
     cv.height = Math.round(sh)
     const ctx = cv.getContext("2d")!
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = "high"
     const img = imgRef.current!
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height)
     onApply(cv.toDataURL("image/png"))
