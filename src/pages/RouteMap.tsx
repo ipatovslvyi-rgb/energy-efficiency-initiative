@@ -4,6 +4,7 @@ import { GrainOverlay } from "@/components/grain-overlay"
 import Icon from "@/components/ui/icon"
 import jsPDF from "jspdf"
 import { ImageCropper } from "@/components/image-cropper"
+import ColorPicker from "@/components/color-picker"
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
 interface ApprovalBlock {
@@ -1161,8 +1162,7 @@ export default function RouteMap() {
                           className={`border-t border-foreground/10 cursor-pointer transition-colors ${activeRowId === row.id ? "bg-foreground/10" : "hover:bg-foreground/5"}`}>
                           <td className="px-3 py-2 text-foreground/50">{idx + 1}</td>
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                            <input type="color" value={row.color} onChange={e => updateRow(row.id, "color", e.target.value)}
-                              className="w-10 h-7 rounded cursor-pointer border-0 bg-transparent" />
+                            <ColorPicker value={row.color} onChange={c => updateRow(row.id, "color", c)} />
                           </td>
                           <td className="px-3 py-2">
                             <input value={row.length} onChange={e => updateRow(row.id, "length", e.target.value)} placeholder="0,0"
