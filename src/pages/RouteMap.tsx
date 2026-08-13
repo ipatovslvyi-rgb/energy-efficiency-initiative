@@ -105,6 +105,10 @@ export default function RouteMap() {
   const [canvasNaturalH, setCanvasNaturalH] = useState(800)
   // Снимок canvas после каждого мазка — чтобы composite не терял рисунок
   const [canvasSnapshot, setCanvasSnapshot] = useState<string | null>(null)
+  // История штрихов для отмены / возврата
+  const undoStack = useRef<string[]>([])
+  const redoStack = useRef<string[]>([])
+  const [historyTick, setHistoryTick] = useState(0)
 
   // Положение мыши для кружка-курсора
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
@@ -136,6 +140,9 @@ export default function RouteMap() {
       setCanvasNaturalH(img.naturalHeight)
       setImageDataUrl(dataUrl)
       setCanvasSnapshot(null)
+      undoStack.current = []
+      redoStack.current = []
+      setHistoryTick(t => t + 1)
       setTimeout(() => {
         const cv = canvasRef.current; if (!cv) return
         cv.width = img.naturalWidth
@@ -232,6 +239,11 @@ export default function RouteMap() {
 
   const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
     const cv = canvasRef.current; if (!cv) return
+    // Запоминаем состояние ДО штриха — для отмены
+    undoStack.current.push(cv.toDataURL("image/png"))
+    if (undoStack.current.length > 40) undoStack.current.shift()
+    redoStack.current = []
+    setHistoryTick(t => t + 1)
     isDrawing.current = true
     lastPos.current = getPos(e, cv)
   }
@@ -292,8 +304,43 @@ export default function RouteMap() {
 
   const clearCanvas = () => {
     const cv = canvasRef.current; if (!cv) return
+    undoStack.current.push(cv.toDataURL("image/png"))
+    redoStack.current = []
+    setHistoryTick(t => t + 1)
     cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height)
     setCanvasSnapshot(null)
+  }
+
+  // Восстановить canvas из снимка
+  const restoreCanvas = (dataUrl: string | null) => {
+    const cv = canvasRef.current; if (!cv) return
+    const ctx = cv.getContext("2d"); if (!ctx) return
+    ctx.clearRect(0, 0, cv.width, cv.height)
+    if (!dataUrl) { setCanvasSnapshot(null); return }
+    const img = new Image()
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0)
+      setCanvasSnapshot(cv.toDataURL("image/png"))
+    }
+    img.src = dataUrl
+  }
+
+  const undoStroke = () => {
+    const cv = canvasRef.current; if (!cv) return
+    const prev = undoStack.current.pop()
+    if (prev === undefined) return
+    redoStack.current.push(cv.toDataURL("image/png"))
+    setHistoryTick(t => t + 1)
+    restoreCanvas(prev)
+  }
+
+  const redoStroke = () => {
+    const cv = canvasRef.current; if (!cv) return
+    const next = redoStack.current.pop()
+    if (next === undefined) return
+    undoStack.current.push(cv.toDataURL("image/png"))
+    setHistoryTick(t => t + 1)
+    restoreCanvas(next)
   }
 
   // Получить итоговое изображение (фото + рисунок поверх) как dataURL
@@ -607,6 +654,9 @@ export default function RouteMap() {
         setCanvasSnapshot(d.canvasSnapshot ?? null)
         setDocName(file.name.replace(/\.rmap$/i, ""))
         setDirty(false)
+        undoStack.current = []
+        redoStack.current = []
+        setHistoryTick(t => t + 1)
         setActiveTab("editor")
 
         // Восстанавливаем рисунок на canvas
@@ -635,8 +685,12 @@ export default function RouteMap() {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return
       const k = e.key.toLowerCase()
+      const tag = (e.target as HTMLElement)?.tagName
       if (k === "s") { e.preventDefault(); e.shiftKey ? saveDocumentAs() : saveDocument() }
       if (k === "o") { e.preventDefault(); docInputRef.current?.click() }
+      if (tag === "INPUT" || tag === "TEXTAREA") return
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undoStroke() }
+      if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redoStroke() }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
@@ -892,6 +946,17 @@ export default function RouteMap() {
                         className="w-20 accent-blue-400 h-1" />
                       <span className="text-[10px] text-foreground/60 w-5">{drawSize}</span>
                     </div>
+                    <div className="w-px h-5 bg-foreground/15" />
+                    <button onClick={undoStroke} disabled={undoStack.current.length === 0} data-h={historyTick}
+                      title="Отменить последний штрих (Ctrl+Z)"
+                      className="flex items-center gap-1 rounded-lg border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs text-foreground/60 hover:text-foreground transition-colors disabled:opacity-30 disabled:hover:text-foreground/60">
+                      <Icon name="Undo2" size={12} />Отменить
+                    </button>
+                    <button onClick={redoStroke} disabled={redoStack.current.length === 0}
+                      title="Вернуть отменённое (Ctrl+Y)"
+                      className="flex items-center gap-1 rounded-lg border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs text-foreground/60 hover:text-foreground transition-colors disabled:opacity-30 disabled:hover:text-foreground/60">
+                      <Icon name="Redo2" size={12} />Вернуть
+                    </button>
                     <div className="w-px h-5 bg-foreground/15" />
                     <button onClick={() => setDrawTool(t => t === "eraser" ? "pen" : "eraser")}
                       className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition-colors ${drawTool === "eraser" ? "border-orange-400/60 bg-orange-500/15 text-orange-400" : "border-foreground/20 bg-foreground/5 text-foreground/60 hover:text-foreground"}`}>
