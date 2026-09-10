@@ -5,6 +5,7 @@ import Icon from "@/components/ui/icon"
 import jsPDF from "jspdf"
 import { ImageCropper } from "@/components/image-cropper"
 import ColorPicker from "@/components/color-picker"
+import AlignControls from "@/components/align-controls"
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
 interface ApprovalBlock {
@@ -32,6 +33,10 @@ interface TextStyleState {
   sign: number       // блок подписи «Разработал»
   titleAlign: TextAlign   // выравнивание заголовка
   titleBold: boolean[]    // жирность каждой строки заголовка
+  agreeAlign: TextAlign   // выравнивание блока СОГЛАСОВАНО
+  approveAlign: TextAlign // выравнивание блока УТВЕРЖДАЮ
+  agreeBold: boolean      // жирность слова СОГЛАСОВАНО
+  approveBold: boolean    // жирность слова УТВЕРЖДАЮ
 }
 
 const DEFAULT_TEXT_STYLE: TextStyleState = {
@@ -43,6 +48,10 @@ const DEFAULT_TEXT_STYLE: TextStyleState = {
   sign: 10,
   titleAlign: "center",
   titleBold: [true, false, false, false, false],
+  agreeAlign: "left",
+  approveAlign: "right",
+  agreeBold: true,
+  approveBold: true,
 }
 
 // Шрифты, доступные для документа
@@ -144,7 +153,7 @@ export default function RouteMap() {
 
   // Настройки оформления текстовых блоков документа
   const [textStyle, setTextStyle] = useState<TextStyleState>(DEFAULT_TEXT_STYLE)
-  const setTS = (k: keyof TextStyleState, v: string | number | boolean[]) =>
+  const setTS = (k: keyof TextStyleState, v: string | number | boolean | boolean[]) =>
     setTextStyle(s => ({ ...s, [k]: v }))
 
   // Жирность конкретной строки заголовка
@@ -552,33 +561,40 @@ export default function RouteMap() {
     ctx.textBaseline = "top"
     ctx.fillStyle = "#000"
 
-    // Левый блок — СОГЛАСОВАНО
-    ctx.font = `bold ${fontSize(hFs)}px ${FF}`
-    ctx.fillText("СОГЛАСОВАНО", ML, curY)
-    ctx.font = `${fontSize(hFs)}px ${FF}`
-    ctx.fillText(agree.role, ML, curY + lh)
-    ctx.fillText(agree.org, ML, curY + 2 * lh)
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
-    ctx.beginPath(); ctx.moveTo(ML, sigY); ctx.lineTo(ML + sigW, sigY); ctx.stroke()
-    ctx.fillText(agree.name, ML + sigW + gap, nameY)
-    ctx.fillText(agree.date, ML, dateY)
+    const colW = innerW * 0.45              // ширина колонки шапки
+    const aAlign = textStyle.agreeAlign ?? "left"
+    const pAlign = textStyle.approveAlign ?? "right"
 
-    // Правый блок — УТВЕРЖДАЮ
-    const R = ML + innerW
-    ctx.font = `bold ${fontSize(hFs)}px ${FF}`
-    ctx.textAlign = "right"
-    ctx.fillText("УТВЕРЖДАЮ", R, curY)
-    ctx.font = `${fontSize(hFs)}px ${FF}`
-    ctx.fillText(approve.role, R, curY + lh)
-    ctx.fillText(approve.org, R, curY + 2 * lh)
-    ctx.fillText(approve.name, R, nameY)
-    const nameW = ctx.measureText(approve.name).width
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
-    ctx.beginPath()
-    ctx.moveTo(R - nameW - gap - sigW, sigY)
-    ctx.lineTo(R - nameW - gap, sigY)
-    ctx.stroke()
-    ctx.fillText(approve.date, R, dateY)
+    // Рисуем один блок шапки с произвольным выравниванием внутри своей колонки
+    const drawHeaderBlock = (
+      x0: number, w: number, align: TextAlign, bold: boolean,
+      caption: string, b: ApprovalBlock
+    ) => {
+      // Опорная точка текста внутри колонки
+      const ax = align === "left" ? x0 : align === "right" ? x0 + w : x0 + w / 2
+      ctx.textAlign = align
+
+      ctx.font = `${bold ? "bold " : ""}${fontSize(hFs)}px ${FF}`
+      ctx.fillText(caption, ax, curY)
+      ctx.font = `${fontSize(hFs)}px ${FF}`
+      ctx.fillText(b.role, ax, curY + lh)
+      ctx.fillText(b.org, ax, curY + 2 * lh)
+      ctx.fillText(b.date, ax, dateY)
+
+      // Линия подписи + ФИО: линия слева, фамилия справа от неё
+      const nw = ctx.measureText(b.name).width
+      const groupW = sigW + gap + nw
+      const gx = align === "left" ? x0 : align === "right" ? x0 + w - groupW : x0 + (w - groupW) / 2
+
+      ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
+      ctx.beginPath(); ctx.moveTo(gx, sigY); ctx.lineTo(gx + sigW, sigY); ctx.stroke()
+
+      ctx.textAlign = "left"
+      ctx.fillText(b.name, gx + sigW + gap, nameY)
+    }
+
+    drawHeaderBlock(ML, colW, aAlign, textStyle.agreeBold ?? true, "СОГЛАСОВАНО", agree)
+    drawHeaderBlock(ML + innerW - colW, colW, pAlign, textStyle.approveBold ?? true, "УТВЕРЖДАЮ", approve)
 
     ctx.textAlign = "left"
     curY += headerH
@@ -992,7 +1008,15 @@ export default function RouteMap() {
               {/* Согласовано / Утверждаю */}
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4">
-                  <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest mb-3">Согласовано</p>
+                  <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                    <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Согласовано</p>
+                    <AlignControls
+                      value={textStyle.agreeAlign ?? "left"}
+                      onChange={v => setTS("agreeAlign", v)}
+                      bold={textStyle.agreeBold ?? true}
+                      onToggleBold={() => setTS("agreeBold", !(textStyle.agreeBold ?? true))}
+                    />
+                  </div>
                   <div className="flex flex-col gap-2">
                     {[
                       { label: "Должность", key: "role" as const, ph: "Главный инженер" },
@@ -1010,7 +1034,15 @@ export default function RouteMap() {
                   </div>
                 </div>
                 <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4">
-                  <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest mb-3">Утверждаю</p>
+                  <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                    <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Утверждаю</p>
+                    <AlignControls
+                      value={textStyle.approveAlign ?? "right"}
+                      onChange={v => setTS("approveAlign", v)}
+                      bold={textStyle.approveBold ?? true}
+                      onToggleBold={() => setTS("approveBold", !(textStyle.approveBold ?? true))}
+                    />
+                  </div>
                   <div className="flex flex-col gap-2">
                     {[
                       { label: "Должность", key: "role" as const, ph: "Зам. командира отряда" },
@@ -1033,21 +1065,10 @@ export default function RouteMap() {
               <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4 mb-6">
                 <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
                   <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Наименование документа</p>
-                  {/* Выравнивание заголовка */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-foreground/40 font-mono uppercase tracking-wider mr-1">Выравнивание</span>
-                    {([
-                      { v: "left" as const, icon: "AlignLeft", title: "По левому краю" },
-                      { v: "center" as const, icon: "AlignCenter", title: "По центру" },
-                      { v: "right" as const, icon: "AlignRight", title: "По правому краю" },
-                    ]).map(a => (
-                      <button key={a.v} title={a.title}
-                        onClick={() => setTS("titleAlign", a.v)}
-                        className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${(textStyle.titleAlign ?? "center") === a.v ? "border-primary/70 bg-primary/15 text-foreground" : "border-foreground/20 text-foreground/50 hover:text-foreground"}`}>
-                        <Icon name={a.icon} size={14} />
-                      </button>
-                    ))}
-                  </div>
+                  <AlignControls
+                    value={textStyle.titleAlign ?? "center"}
+                    onChange={v => setTS("titleAlign", v)}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -1403,26 +1424,24 @@ export default function RouteMap() {
             >
               {/* Строка СОГЛАСОВАНО / УТВЕРЖДАЮ */}
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, flexShrink: 0 }}>
-                <div style={{ width: "45%", fontSize: textStyle.header, lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: textStyle.header }}>СОГЛАСОВАНО</div>
-                  <div>{agree.role}</div>
-                  <div>{agree.org}</div>
-                  <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 8 }}>
-                    <div style={{ borderBottom: "0.5px solid #555", width: 90, height: 12 }} />
-                    <div style={{ lineHeight: 1.2 }}>{agree.name}</div>
+                {([
+                  { b: agree, caption: "СОГЛАСОВАНО", align: textStyle.agreeAlign ?? "left", bold: textStyle.agreeBold ?? true },
+                  { b: approve, caption: "УТВЕРЖДАЮ", align: textStyle.approveAlign ?? "right", bold: textStyle.approveBold ?? true },
+                ]).map((blk, k) => (
+                  <div key={k} style={{ width: "45%", fontSize: textStyle.header, lineHeight: 1.5, textAlign: blk.align }}>
+                    <div style={{ fontWeight: blk.bold ? "bold" : "normal", textTransform: "uppercase", fontSize: textStyle.header }}>{blk.caption}</div>
+                    <div>{blk.b.role}</div>
+                    <div>{blk.b.org}</div>
+                    <div style={{
+                      display: "flex", alignItems: "flex-end", gap: 6, marginTop: 8,
+                      justifyContent: blk.align === "left" ? "flex-start" : blk.align === "right" ? "flex-end" : "center",
+                    }}>
+                      <div style={{ borderBottom: "0.5px solid #555", width: 90, height: 12, flexShrink: 0 }} />
+                      <div style={{ lineHeight: 1.2, whiteSpace: "nowrap" }}>{blk.b.name}</div>
+                    </div>
+                    <div style={{ marginTop: 4 }}>{blk.b.date}</div>
                   </div>
-                  <div style={{ marginTop: 4 }}>{agree.date}</div>
-                </div>
-                <div style={{ width: "45%", fontSize: textStyle.header, lineHeight: 1.5, textAlign: "right" }}>
-                  <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: textStyle.header }}>УТВЕРЖДАЮ</div>
-                  <div>{approve.role}</div>
-                  <div>{approve.org}</div>
-                  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
-                    <div style={{ borderBottom: "0.5px solid #555", width: 90, height: 12 }} />
-                    <div style={{ lineHeight: 1.2 }}>{approve.name}</div>
-                  </div>
-                  <div style={{ marginTop: 4 }}>{approve.date}</div>
-                </div>
+                ))}
               </div>
 
               {/* Заголовок */}
