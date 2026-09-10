@@ -156,6 +156,14 @@ export default function RouteMap() {
   const setTS = (k: keyof TextStyleState, v: string | number | boolean | boolean[]) =>
     setTextStyle(s => ({ ...s, [k]: v }))
 
+  // Копирование оформления между блоками шапки
+  const copyHeaderStyle = (from: "agree" | "approve") =>
+    setTextStyle(s =>
+      from === "agree"
+        ? { ...s, approveAlign: s.agreeAlign, approveBold: s.agreeBold }
+        : { ...s, agreeAlign: s.approveAlign, agreeBold: s.approveBold }
+    )
+
   // Жирность конкретной строки заголовка
   const isBold = (i: number) => textStyle.titleBold?.[i] ?? (i === 0)
   const toggleBold = (i: number) =>
@@ -1010,12 +1018,22 @@ export default function RouteMap() {
                 <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4">
                   <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                     <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Согласовано</p>
-                    <AlignControls
-                      value={textStyle.agreeAlign ?? "left"}
-                      onChange={v => setTS("agreeAlign", v)}
-                      bold={textStyle.agreeBold ?? true}
-                      onToggleBold={() => setTS("agreeBold", !(textStyle.agreeBold ?? true))}
-                    />
+                    <div className="flex items-center gap-1">
+                      <AlignControls
+                        value={textStyle.agreeAlign ?? "left"}
+                        onChange={v => setTS("agreeAlign", v)}
+                        bold={textStyle.agreeBold ?? true}
+                        onToggleBold={() => setTS("agreeBold", !(textStyle.agreeBold ?? true))}
+                      />
+                      <button
+                        type="button"
+                        title="Применить это оформление к блоку «Утверждаю»"
+                        onClick={() => copyHeaderStyle("agree")}
+                        className="ml-1 flex h-7 items-center gap-1 rounded-lg border border-foreground/20 px-2 text-[10px] text-foreground/50 hover:text-foreground hover:border-foreground/40 transition-colors">
+                        <Icon name="ArrowRightLeft" size={12} />
+                        Копировать
+                      </button>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-2">
                     {[
@@ -1036,12 +1054,22 @@ export default function RouteMap() {
                 <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4">
                   <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                     <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Утверждаю</p>
-                    <AlignControls
-                      value={textStyle.approveAlign ?? "right"}
-                      onChange={v => setTS("approveAlign", v)}
-                      bold={textStyle.approveBold ?? true}
-                      onToggleBold={() => setTS("approveBold", !(textStyle.approveBold ?? true))}
-                    />
+                    <div className="flex items-center gap-1">
+                      <AlignControls
+                        value={textStyle.approveAlign ?? "right"}
+                        onChange={v => setTS("approveAlign", v)}
+                        bold={textStyle.approveBold ?? true}
+                        onToggleBold={() => setTS("approveBold", !(textStyle.approveBold ?? true))}
+                      />
+                      <button
+                        type="button"
+                        title="Применить это оформление к блоку «Согласовано»"
+                        onClick={() => copyHeaderStyle("approve")}
+                        className="ml-1 flex h-7 items-center gap-1 rounded-lg border border-foreground/20 px-2 text-[10px] text-foreground/50 hover:text-foreground hover:border-foreground/40 transition-colors">
+                        <Icon name="ArrowRightLeft" size={12} />
+                        Копировать
+                      </button>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-2">
                     {[
