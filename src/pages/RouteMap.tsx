@@ -21,6 +21,8 @@ interface RouteRow {
   time: string
 }
 
+type TextAlign = "left" | "center" | "right"
+
 interface TextStyleState {
   font: string
   header: number     // СОГЛАСОВАНО / УТВЕРЖДАЮ
@@ -28,6 +30,19 @@ interface TextStyleState {
   titleSub: number   // остальные строки заголовка
   table: number      // таблица маршрутов
   sign: number       // блок подписи «Разработал»
+  titleAlign: TextAlign   // выравнивание заголовка
+  titleBold: boolean[]    // жирность каждой строки заголовка
+}
+
+const DEFAULT_TEXT_STYLE: TextStyleState = {
+  font: "Times New Roman",
+  header: 10,
+  titleMain: 12,
+  titleSub: 11,
+  table: 10,
+  sign: 10,
+  titleAlign: "center",
+  titleBold: [true, false, false, false, false],
 }
 
 // Шрифты, доступные для документа
@@ -128,16 +143,18 @@ export default function RouteMap() {
   const [devName, setDevName] = useState("")
 
   // Настройки оформления текстовых блоков документа
-  const [textStyle, setTextStyle] = useState<TextStyleState>({
-    font: "Times New Roman",
-    header: 10,
-    titleMain: 12,
-    titleSub: 11,
-    table: 10,
-    sign: 10,
-  })
-  const setTS = (k: keyof TextStyleState, v: string | number) =>
+  const [textStyle, setTextStyle] = useState<TextStyleState>(DEFAULT_TEXT_STYLE)
+  const setTS = (k: keyof TextStyleState, v: string | number | boolean[]) =>
     setTextStyle(s => ({ ...s, [k]: v }))
+
+  // Жирность конкретной строки заголовка
+  const isBold = (i: number) => textStyle.titleBold?.[i] ?? (i === 0)
+  const toggleBold = (i: number) =>
+    setTextStyle(s => {
+      const arr = titleLines.map((_, j) => s.titleBold?.[j] ?? (j === 0))
+      arr[i] = !arr[i]
+      return { ...s, titleBold: arr }
+    })
   // ID строки, цвет которой синхронизирован с карандашом
   const [activeRowId, setActiveRowId] = useState<string | null>("1")
 
@@ -568,13 +585,15 @@ export default function RouteMap() {
 
     // ── ЗАГОЛОВОК ──
     const titleLh = Math.max(textStyle.titleMain, textStyle.titleSub) * 1.25 * s
+    const tAlign = textStyle.titleAlign ?? "center"
+    const tX = tAlign === "left" ? ML : tAlign === "right" ? ML + innerW : ML + innerW / 2
     titleLines.forEach((line, i) => {
       if (!line) return
-      ctx.font = i === 0
-        ? `bold ${fontSize(textStyle.titleMain)}px ${FF}`
-        : `${fontSize(textStyle.titleSub)}px ${FF}`
-      ctx.fillStyle = "#000"; ctx.textAlign = "center"
-      ctx.fillText(line, ML + innerW / 2, curY + i * titleLh)
+      const bold = (textStyle.titleBold?.[i] ?? (i === 0)) ? "bold " : ""
+      const fs = i === 0 ? textStyle.titleMain : textStyle.titleSub
+      ctx.font = `${bold}${fontSize(fs)}px ${FF}`
+      ctx.fillStyle = "#000"; ctx.textAlign = tAlign
+      ctx.fillText(line, tX, curY + i * titleLh)
     })
     ctx.textAlign = "left"
     curY += titleLines.length * titleLh + 8 * s
@@ -737,7 +756,7 @@ export default function RouteMap() {
         setRows(d.rows ?? [])
         setDevRole(d.devRole ?? "")
         setDevName(d.devName ?? "")
-        setTextStyle(d.textStyle ?? { font: "Times New Roman", header: 10, titleMain: 12, titleSub: 11, table: 10, sign: 10 })
+        setTextStyle({ ...DEFAULT_TEXT_STYLE, ...(d.textStyle ?? {}) })
         setCanvasNaturalW(d.canvasNaturalW ?? 1200)
         setCanvasNaturalH(d.canvasNaturalH ?? 800)
         setImageDataUrl(d.imageDataUrl ?? null)
@@ -1012,14 +1031,44 @@ export default function RouteMap() {
 
               {/* Заголовок */}
               <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4 mb-6">
-                <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest mb-3">Наименование документа</p>
-                <div className="flex flex-col gap-2 items-center">
+                <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                  <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Наименование документа</p>
+                  {/* Выравнивание заголовка */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-foreground/40 font-mono uppercase tracking-wider mr-1">Выравнивание</span>
+                    {([
+                      { v: "left" as const, icon: "AlignLeft", title: "По левому краю" },
+                      { v: "center" as const, icon: "AlignCenter", title: "По центру" },
+                      { v: "right" as const, icon: "AlignRight", title: "По правому краю" },
+                    ]).map(a => (
+                      <button key={a.v} title={a.title}
+                        onClick={() => setTS("titleAlign", a.v)}
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${(textStyle.titleAlign ?? "center") === a.v ? "border-primary/70 bg-primary/15 text-foreground" : "border-foreground/20 text-foreground/50 hover:text-foreground"}`}>
+                        <Icon name={a.icon} size={14} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
                   {titleLines.map((line, i) => (
-                    <input key={i} value={line}
-                      onChange={e => setTitleLines(l => l.map((x, j) => j === i ? e.target.value : x))}
-                      placeholder={`Строка ${i + 1}`}
-                      className={`bg-transparent border-b border-foreground/20 hover:border-foreground/40 focus:border-primary/60 outline-none text-center w-full max-w-md placeholder:text-foreground/25 transition-colors ${i === 0 ? "text-base font-bold text-foreground" : "text-sm text-foreground/80"}`}
-                    />
+                    <div key={i} className="flex items-center gap-2">
+                      <button
+                        title={isBold(i) ? "Убрать жирность" : "Сделать жирным"}
+                        onClick={() => toggleBold(i)}
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors ${isBold(i) ? "border-primary/70 bg-primary/15 text-foreground" : "border-foreground/20 text-foreground/40 hover:text-foreground"}`}>
+                        <Icon name="Bold" size={13} />
+                      </button>
+                      <input value={line}
+                        onChange={e => setTitleLines(l => l.map((x, j) => j === i ? e.target.value : x))}
+                        placeholder={`Строка ${i + 1}`}
+                        style={{
+                          textAlign: textStyle.titleAlign ?? "center",
+                          fontWeight: isBold(i) ? 700 : 400,
+                        }}
+                        className={`flex-1 bg-transparent border-b border-foreground/20 hover:border-foreground/40 focus:border-primary/60 outline-none placeholder:text-foreground/25 transition-colors ${i === 0 ? "text-base text-foreground" : "text-sm text-foreground/80"}`}
+                      />
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1029,7 +1078,7 @@ export default function RouteMap() {
                 <div className="flex items-center justify-between mb-3">
                   <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Оформление текста</p>
                   <button
-                    onClick={() => setTextStyle({ font: "Times New Roman", header: 10, titleMain: 12, titleSub: 11, table: 10, sign: 10 })}
+                    onClick={() => setTextStyle(DEFAULT_TEXT_STYLE)}
                     className="flex items-center gap-1 rounded-lg border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs text-foreground/60 hover:text-foreground transition-colors">
                     <Icon name="RotateCcw" size={12} />По умолчанию
                   </button>
@@ -1377,9 +1426,13 @@ export default function RouteMap() {
               </div>
 
               {/* Заголовок */}
-              <div style={{ textAlign: "center", marginBottom: 6, flexShrink: 0 }}>
+              <div style={{ textAlign: textStyle.titleAlign ?? "center", marginBottom: 6, flexShrink: 0 }}>
                 {titleLines.map((line, i) => (
-                  <div key={i} style={{ fontWeight: i === 0 ? "bold" : "normal", fontSize: i === 0 ? textStyle.titleMain : textStyle.titleSub, lineHeight: 1.25 }}>{line || "\u00A0"}</div>
+                  <div key={i} style={{
+                    fontWeight: isBold(i) ? "bold" : "normal",
+                    fontSize: i === 0 ? textStyle.titleMain : textStyle.titleSub,
+                    lineHeight: 1.25,
+                  }}>{line || "\u00A0"}</div>
                 ))}
               </div>
 
