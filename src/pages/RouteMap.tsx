@@ -21,6 +21,28 @@ interface RouteRow {
   time: string
 }
 
+interface TextStyleState {
+  font: string
+  header: number     // СОГЛАСОВАНО / УТВЕРЖДАЮ
+  titleMain: number  // Маршрутная карта (первая строка)
+  titleSub: number   // остальные строки заголовка
+  table: number      // таблица маршрутов
+  sign: number       // блок подписи «Разработал»
+}
+
+// Шрифты, доступные для документа
+const DOC_FONTS = [
+  { value: "Times New Roman", label: "Times New Roman", css: '"Times New Roman", Times, serif' },
+  { value: "Arial", label: "Arial", css: 'Arial, Helvetica, sans-serif' },
+  { value: "Calibri", label: "Calibri", css: 'Calibri, Candara, sans-serif' },
+  { value: "Georgia", label: "Georgia", css: 'Georgia, serif' },
+  { value: "Verdana", label: "Verdana", css: 'Verdana, Geneva, sans-serif' },
+  { value: "Courier New", label: "Courier New", css: '"Courier New", Courier, monospace' },
+] as const
+
+const fontCss = (name: string) =>
+  DOC_FONTS.find(f => f.value === name)?.css ?? '"Times New Roman", Times, serif'
+
 type DrawTool = "pen" | "eraser" | "pan"
 type ActiveTab = "editor" | "preview"
 type Orientation = "portrait" | "landscape"
@@ -104,6 +126,18 @@ export default function RouteMap() {
   ])
   const [devRole, setDevRole] = useState("")
   const [devName, setDevName] = useState("")
+
+  // Настройки оформления текстовых блоков документа
+  const [textStyle, setTextStyle] = useState<TextStyleState>({
+    font: "Times New Roman",
+    header: 10,
+    titleMain: 12,
+    titleSub: 11,
+    table: 10,
+    sign: 10,
+  })
+  const setTS = (k: keyof TextStyleState, v: string | number) =>
+    setTextStyle(s => ({ ...s, [k]: v }))
   // ID строки, цвет которой синхронизирован с карандашом
   const [activeRowId, setActiveRowId] = useState<string | null>("1")
 
@@ -483,16 +517,15 @@ export default function RouteMap() {
 
     ctx.fillStyle = "#ffffff"
     ctx.fillRect(0, 0, W, H)
-    ctx.strokeStyle = "#000"
-    ctx.lineWidth = 1 * s
-    ctx.strokeRect(ML - 2, MT - 2, innerW + 4, (H - MT - MB) + 4)
 
     let curY = MT
     const fontSize = (n: number) => n * s
+    const FF = fontCss(textStyle.font)
 
     // ── СОГЛАСОВАНО / УТВЕРЖДАЮ ──
-    const headerH = 104 * s
-    const lh = 14 * s          // высота строки
+    const hFs = textStyle.header
+    const lh = hFs * 1.45 * s  // высота строки зависит от кегля
+    const headerH = lh * 7
     const sigW = innerW * 0.15 // длина линии для живой подписи
     const gap = 6 * s
     const sigY = curY + 3.9 * lh   // линия подписи
@@ -503,9 +536,9 @@ export default function RouteMap() {
     ctx.fillStyle = "#000"
 
     // Левый блок — СОГЛАСОВАНО
-    ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
+    ctx.font = `bold ${fontSize(hFs)}px ${FF}`
     ctx.fillText("СОГЛАСОВАНО", ML, curY)
-    ctx.font = `${fontSize(10)}px "Times New Roman"`
+    ctx.font = `${fontSize(hFs)}px ${FF}`
     ctx.fillText(agree.role, ML, curY + lh)
     ctx.fillText(agree.org, ML, curY + 2 * lh)
     ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
@@ -515,10 +548,10 @@ export default function RouteMap() {
 
     // Правый блок — УТВЕРЖДАЮ
     const R = ML + innerW
-    ctx.font = `bold ${fontSize(10)}px "Times New Roman"`
+    ctx.font = `bold ${fontSize(hFs)}px ${FF}`
     ctx.textAlign = "right"
     ctx.fillText("УТВЕРЖДАЮ", R, curY)
-    ctx.font = `${fontSize(10)}px "Times New Roman"`
+    ctx.font = `${fontSize(hFs)}px ${FF}`
     ctx.fillText(approve.role, R, curY + lh)
     ctx.fillText(approve.org, R, curY + 2 * lh)
     ctx.fillText(approve.name, R, nameY)
@@ -534,19 +567,22 @@ export default function RouteMap() {
     curY += headerH
 
     // ── ЗАГОЛОВОК ──
+    const titleLh = Math.max(textStyle.titleMain, textStyle.titleSub) * 1.25 * s
     titleLines.forEach((line, i) => {
       if (!line) return
-      ctx.font = i === 0 ? `bold ${fontSize(12)}px "Times New Roman"` : `${fontSize(11)}px "Times New Roman"`
+      ctx.font = i === 0
+        ? `bold ${fontSize(textStyle.titleMain)}px ${FF}`
+        : `${fontSize(textStyle.titleSub)}px ${FF}`
       ctx.fillStyle = "#000"; ctx.textAlign = "center"
-      ctx.fillText(line, ML + innerW / 2, curY + i * 14 * s)
+      ctx.fillText(line, ML + innerW / 2, curY + i * titleLh)
     })
     ctx.textAlign = "left"
-    curY += titleLines.length * 14 * s + 8 * s
+    curY += titleLines.length * titleLh + 8 * s
 
     // ── КАРТИНКА ──
-    const tableRowH = 14 * s
+    const tableRowH = textStyle.table * 1.5 * s
     const tableH = (3 + rows.length) * tableRowH + 6 * s
-    const signH = 26 * s
+    const signH = textStyle.sign * 2.8 * s
     const imgAreaH = H - curY - MB - tableH - signH - 8 * s
 
     ctx.strokeStyle = "#999"; ctx.lineWidth = 1 * s
@@ -562,7 +598,7 @@ export default function RouteMap() {
       else { dh = imgAreaH; dw = imgAreaH * ir; dx = (innerW - dw) / 2; dy = 0 }
       ctx.drawImage(natImg, ML + dx, curY + dy, dw, dh)
     } else {
-      ctx.fillStyle = "#aaa"; ctx.font = `${fontSize(11)}px "Times New Roman"`; ctx.textAlign = "center"
+      ctx.fillStyle = "#aaa"; ctx.font = `${fontSize(11)}px ${FF}`; ctx.textAlign = "center"
       ctx.fillText("Карта не загружена", ML + innerW / 2, curY + imgAreaH / 2)
       ctx.textAlign = "left"
     }
@@ -574,12 +610,12 @@ export default function RouteMap() {
     const cols = [tableW * 0.07, tableW * 0.12, tableW * 0.46, tableW * 0.35]
     const colX = [tableX, tableX + cols[0], tableX + cols[0] + cols[1], tableX + cols[0] + cols[1] + cols[2]]
     ctx.strokeStyle = "#000"; ctx.lineWidth = 0.5 * s
-    ctx.font = `${fontSize(9)}px "Times New Roman"`; ctx.fillStyle = "#000"
+    ctx.font = `${fontSize(textStyle.table)}px ${FF}`; ctx.fillStyle = "#000"
 
     const drawCell = (x: number, y: number, w: number, h: number, text: string, align: "left"|"center"|"right" = "center") => {
       ctx.strokeRect(x, y, w, h); ctx.textAlign = align
       const tx = align === "center" ? x + w / 2 : align === "right" ? x + w - 3 * s : x + 3 * s
-      ctx.fillText(text, tx, y + h / 2 - 4 * s, w - 4 * s); ctx.textAlign = "left"
+      ctx.fillText(text, tx, y + h / 2 - textStyle.table * 0.55 * s, w - 4 * s); ctx.textAlign = "left"
     }
 
     drawCell(tableX, curY, tableW, tableRowH, "Маршрут профилактического обследования"); curY += tableRowH
@@ -601,20 +637,31 @@ export default function RouteMap() {
     curY += 4 * s
 
     // ── РАЗРАБОТАЛ ──
-    ctx.font = `${fontSize(10)}px "Times New Roman"`; ctx.fillStyle = "#000"
+    // Текст пишем НАД линией с отступом, чтобы подчёркивание не резало буквы
+    const sFs = textStyle.sign
+    ctx.font = `${fontSize(sFs)}px ${FF}`; ctx.fillStyle = "#000"
+    ctx.textBaseline = "alphabetic"
     const c1w = innerW * 0.35, c2w = innerW * 0.20
-    ctx.fillText(devRole, ML, curY + 12 * s)
+    const lineY = curY + sFs * 1.6 * s     // уровень линий
+    const textY = lineY - sFs * 0.35 * s   // базовая линия текста выше линии
+
+    ctx.fillText(devRole, ML, textY)
+    ctx.fillText(devName, ML + c1w + c2w + 4 * s, textY)
+
     ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5 * s
-    ctx.beginPath(); ctx.moveTo(ML, curY + 16 * s); ctx.lineTo(ML + c1w * 0.85, curY + 16 * s); ctx.stroke()
-    ctx.beginPath(); ctx.moveTo(ML + c1w, curY + 16 * s); ctx.lineTo(ML + c1w + c2w, curY + 16 * s); ctx.stroke()
-    ctx.fillText(devName, ML + c1w + c2w, curY + 12 * s)
-    ctx.beginPath(); ctx.moveTo(ML + c1w + c2w, curY + 16 * s); ctx.lineTo(ML + innerW, curY + 16 * s); ctx.stroke()
+    const line = (x1: number, x2: number) => {
+      ctx.beginPath(); ctx.moveTo(x1, lineY); ctx.lineTo(x2, lineY); ctx.stroke()
+    }
+    line(ML, ML + c1w * 0.85)
+    line(ML + c1w, ML + c1w + c2w)
+    line(ML + c1w + c2w, ML + innerW)
+    ctx.textBaseline = "top"
 
     return cv
   }, [
     A3_W_PX, A3_H_PX, CONTENT_L, CONTENT_T, CONTENT_R, CONTENT_B,
     agree, approve, titleLines, compositeUrl, compositeNatW, compositeNatH,
-    rows, devRole, devName,
+    rows, devRole, devName, textStyle,
   ])
 
   // Помечаем документ изменённым при правках
@@ -622,7 +669,7 @@ export default function RouteMap() {
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return }
     setDirty(true)
-  }, [agree, approve, titleLines, rows, devRole, devName, imageDataUrl, canvasSnapshot, orientation])
+  }, [agree, approve, titleLines, rows, devRole, devName, textStyle, imageDataUrl, canvasSnapshot, orientation])
 
   // Предупреждение о несохранённых изменениях
   useEffect(() => {
@@ -646,11 +693,12 @@ export default function RouteMap() {
     rows,
     devRole,
     devName,
+    textStyle,
     imageDataUrl,
     canvasSnapshot,
     canvasNaturalW,
     canvasNaturalH,
-  }), [orientation, paperSize, exportDpi, agree, approve, titleLines, rows, devRole, devName, imageDataUrl, canvasSnapshot, canvasNaturalW, canvasNaturalH])
+  }), [orientation, paperSize, exportDpi, agree, approve, titleLines, rows, devRole, devName, textStyle, imageDataUrl, canvasSnapshot, canvasNaturalW, canvasNaturalH])
 
   const writeFile = (name: string) => {
     const blob = new Blob([JSON.stringify(buildDocument())], { type: "application/json" })
@@ -689,6 +737,7 @@ export default function RouteMap() {
         setRows(d.rows ?? [])
         setDevRole(d.devRole ?? "")
         setDevName(d.devName ?? "")
+        setTextStyle(d.textStyle ?? { font: "Times New Roman", header: 10, titleMain: 12, titleSub: 11, table: 10, sign: 10 })
         setCanvasNaturalW(d.canvasNaturalW ?? 1200)
         setCanvasNaturalH(d.canvasNaturalH ?? 800)
         setImageDataUrl(d.imageDataUrl ?? null)
@@ -975,6 +1024,61 @@ export default function RouteMap() {
                 </div>
               </div>
 
+              {/* Оформление текста документа */}
+              <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-mono text-[10px] text-foreground/40 uppercase tracking-widest">Оформление текста</p>
+                  <button
+                    onClick={() => setTextStyle({ font: "Times New Roman", header: 10, titleMain: 12, titleSub: 11, table: 10, sign: 10 })}
+                    className="flex items-center gap-1 rounded-lg border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs text-foreground/60 hover:text-foreground transition-colors">
+                    <Icon name="RotateCcw" size={12} />По умолчанию
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <label className="text-[10px] text-foreground/40 font-mono uppercase tracking-wider">Шрифт документа</label>
+                  <select
+                    value={textStyle.font}
+                    onChange={e => setTS("font", e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-foreground/20 bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60 transition-colors cursor-pointer">
+                    {DOC_FONTS.map(f => (
+                      <option key={f.value} value={f.value}>{f.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {([
+                    { key: "header" as const, label: "Согласовано / Утверждаю" },
+                    { key: "titleMain" as const, label: "Маршрутная карта (заголовок)" },
+                    { key: "titleSub" as const, label: "Подзаголовки" },
+                    { key: "table" as const, label: "Таблица маршрутов" },
+                    { key: "sign" as const, label: "Блок подписи" },
+                  ]).map(f => (
+                    <div key={f.key} className="flex items-center gap-3">
+                      <span className="flex-1 text-xs text-foreground/60">{f.label}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setTS(f.key, Math.max(6, textStyle[f.key] - 1))}
+                          className="w-6 h-6 rounded border border-foreground/20 text-foreground/60 hover:text-foreground hover:border-foreground/40 transition-colors">−</button>
+                        <input
+                          type="number" min={6} max={40}
+                          value={textStyle[f.key]}
+                          onChange={e => setTS(f.key, Math.min(40, Math.max(6, Number(e.target.value) || 6)))}
+                          className="w-12 rounded border border-foreground/20 bg-background px-1 py-0.5 text-center text-xs text-foreground outline-none focus:border-primary/60 transition-colors" />
+                        <button
+                          onClick={() => setTS(f.key, Math.min(40, textStyle[f.key] + 1))}
+                          className="w-6 h-6 rounded border border-foreground/20 text-foreground/60 hover:text-foreground hover:border-foreground/40 transition-colors">+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-3 font-mono text-[10px] text-foreground/35">
+                  Размер указан в пунктах — как в Word. Изменения сразу видны в предпросмотре.
+                </p>
+              </div>
+
               {/* Карта + рисование */}
               <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -1235,8 +1339,8 @@ export default function RouteMap() {
               style={{
                 width: A3_W_PX,
                 height: A3_H_PX,
-                fontFamily: "Times New Roman, Times, serif",
-                fontSize: 11,
+                fontFamily: fontCss(textStyle.font),
+                fontSize: textStyle.titleSub,
                 color: "#000",
                 position: "relative",
                 boxSizing: "border-box",
@@ -1248,19 +1352,10 @@ export default function RouteMap() {
                 flexDirection: "column",
               }}
             >
-              {/* Рамка */}
-              <div style={{
-                position: "absolute",
-                left: CONTENT_L - 2, top: CONTENT_T - 2,
-                right: CONTENT_R - 2, bottom: CONTENT_B - 2,
-                border: "1px solid #000",
-                pointerEvents: "none",
-              }} />
-
               {/* Строка СОГЛАСОВАНО / УТВЕРЖДАЮ */}
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, flexShrink: 0 }}>
-                <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>СОГЛАСОВАНО</div>
+                <div style={{ width: "45%", fontSize: textStyle.header, lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: textStyle.header }}>СОГЛАСОВАНО</div>
                   <div>{agree.role}</div>
                   <div>{agree.org}</div>
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 8 }}>
@@ -1269,8 +1364,8 @@ export default function RouteMap() {
                   </div>
                   <div style={{ marginTop: 4 }}>{agree.date}</div>
                 </div>
-                <div style={{ width: "45%", fontSize: 10, lineHeight: 1.5, textAlign: "right" }}>
-                  <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: 10 }}>УТВЕРЖДАЮ</div>
+                <div style={{ width: "45%", fontSize: textStyle.header, lineHeight: 1.5, textAlign: "right" }}>
+                  <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: textStyle.header }}>УТВЕРЖДАЮ</div>
                   <div>{approve.role}</div>
                   <div>{approve.org}</div>
                   <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
@@ -1284,7 +1379,7 @@ export default function RouteMap() {
               {/* Заголовок */}
               <div style={{ textAlign: "center", marginBottom: 6, flexShrink: 0 }}>
                 {titleLines.map((line, i) => (
-                  <div key={i} style={{ fontWeight: i === 0 ? "bold" : "normal", fontSize: i === 0 ? 12 : 11 }}>{line || "\u00A0"}</div>
+                  <div key={i} style={{ fontWeight: i === 0 ? "bold" : "normal", fontSize: i === 0 ? textStyle.titleMain : textStyle.titleSub, lineHeight: 1.25 }}>{line || "\u00A0"}</div>
                 ))}
               </div>
 
@@ -1309,7 +1404,7 @@ export default function RouteMap() {
 
               {/* Таблица маршрутов */}
               <div style={{ flexShrink: 0, marginBottom: 6 }}>
-                <table style={{ width: "60%", margin: "0 auto", borderCollapse: "collapse", fontSize: 10 }}>
+                <table style={{ width: "60%", margin: "0 auto", borderCollapse: "collapse", fontSize: textStyle.table }}>
                   <thead>
                     <tr>
                       <td colSpan={4} style={{ textAlign: "center", border: "0.5px solid #000", padding: "2px 4px", fontWeight: "normal" }}>
@@ -1338,22 +1433,22 @@ export default function RouteMap() {
                 </table>
               </div>
 
-              {/* Разработал — три колонки; линия ПОД текстом, не перечёркивает */}
-              <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 0, fontSize: 10, marginBottom: 8 }}>
+              {/* Разработал — текст над линией, подчёркивание не задевает буквы */}
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 0, fontSize: textStyle.sign, marginBottom: 8 }}>
                 {/* Должность */}
                 <div style={{ flex: "0 0 35%", paddingRight: 12 }}>
-                  <div style={{ lineHeight: 1.4, minHeight: 14, paddingBottom: 1 }}>{devRole}</div>
-                  <div style={{ borderTop: "0.5px solid #555", marginTop: 1, width: "85%" }} />
+                  <div style={{ lineHeight: 1.3, minHeight: textStyle.sign * 1.3, paddingBottom: 4, whiteSpace: "nowrap", overflow: "hidden" }}>{devRole}</div>
+                  <div style={{ borderTop: "0.5px solid #555", width: "85%" }} />
                 </div>
                 {/* Подпись (пустая линия) */}
                 <div style={{ flex: "0 0 20%", paddingRight: 12 }}>
-                  <div style={{ lineHeight: 1.4, minHeight: 14 }}>&nbsp;</div>
-                  <div style={{ borderTop: "0.5px solid #555", marginTop: 1 }} />
+                  <div style={{ lineHeight: 1.3, minHeight: textStyle.sign * 1.3, paddingBottom: 4 }}>&nbsp;</div>
+                  <div style={{ borderTop: "0.5px solid #555" }} />
                 </div>
                 {/* ФИО */}
                 <div style={{ flex: "0 0 45%" }}>
-                  <div style={{ lineHeight: 1.4, minHeight: 14, paddingBottom: 1 }}>{devName}</div>
-                  <div style={{ borderTop: "0.5px solid #555", marginTop: 1 }} />
+                  <div style={{ lineHeight: 1.3, minHeight: textStyle.sign * 1.3, paddingBottom: 4, paddingLeft: 4, whiteSpace: "nowrap", overflow: "hidden" }}>{devName}</div>
+                  <div style={{ borderTop: "0.5px solid #555" }} />
                 </div>
               </div>
             </div>
