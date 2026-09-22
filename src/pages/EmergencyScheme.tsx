@@ -26,6 +26,15 @@ interface MarkerPosition {
   instanceId?: string // уникальный id копии (несколько одинаковых УО)
 }
 
+// Единый ключ маркера: старые схемы могли сохраняться без instanceId
+const markerKey = (m: MarkerPosition) => m.instanceId ?? m.legendId
+
+const newInstanceId = () => Date.now().toString() + Math.random().toString(36).slice(2)
+
+// Проставляем уникальный id маркерам из ранее сохранённых схем
+const normalizeMarkers = (list?: MarkerPosition[]): MarkerPosition[] =>
+  (list ?? []).map(m => (m.instanceId ? m : { ...m, instanceId: newInstanceId() }))
+
 interface FormData {
   position: string
   date: string
@@ -371,7 +380,7 @@ export default function EmergencyScheme() {
   const [pendingPdfExport, setPendingPdfExport] = useState(false)
   const [pendingPngExport, setPendingPngExport] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [markers, setMarkers] = useState<MarkerPosition[]>(() => loadSchemes()[0]?.markers ?? [])
+  const [markers, setMarkers] = useState<MarkerPosition[]>(() => normalizeMarkers(loadSchemes()[0]?.markers))
   const [draggingMarker, setDraggingMarker] = useState<{ instanceId: string; offsetX: number; offsetY: number } | null>(null)
   const [placingLegendId, setPlacingLegendId] = useState<string | null>(null)
   const [editingMarkers, setEditingMarkers] = useState(false)
@@ -455,7 +464,7 @@ export default function EmergencyScheme() {
     setForm(scheme.form)
     setLegend(scheme.legend)
     setImageUrl(scheme.imageDataUrl)
-    setMarkers(scheme.markers ?? [])
+    setMarkers(normalizeMarkers(scheme.markers))
     setImageFile(null)
     setActiveTab("form")
   }
@@ -527,7 +536,7 @@ export default function EmergencyScheme() {
       return
     }
     const pos = getRelativePos(e.clientX, e.clientY)
-    const iid = Date.now().toString() + Math.random().toString(36).slice(2)
+    const iid = newInstanceId()
     setMarkers(m => [...m, { legendId: placingLegendId, x: pos.x, y: pos.y, scale: 1, rotation: 0, instanceId: iid }])
     setPlacingLegendId(null)
   }, [placingLegendId, editingMarkers, getRelativePos])
@@ -538,7 +547,7 @@ export default function EmergencyScheme() {
     const el = imageContainerRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    const marker = markers.find(m => m.instanceId === instanceId)
+    const marker = markers.find(m => markerKey(m) === instanceId)
     if (!marker) return
     const markerPxX = (marker.x / 100) * rect.width + rect.left
     const markerPxY = (marker.y / 100) * rect.height + rect.top
@@ -548,7 +557,7 @@ export default function EmergencyScheme() {
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!draggingMarker) return
     const pos = getRelativePos(e.clientX - draggingMarker.offsetX, e.clientY - draggingMarker.offsetY)
-    setMarkers(m => m.map(mk => mk.instanceId === draggingMarker.instanceId ? { ...mk, x: pos.x, y: pos.y } : mk))
+    setMarkers(m => m.map(mk => markerKey(mk) === draggingMarker.instanceId ? { ...mk, x: pos.x, y: pos.y } : mk))
   }, [draggingMarker, getRelativePos])
 
   const handleMouseUp = useCallback(() => {
@@ -556,17 +565,17 @@ export default function EmergencyScheme() {
   }, [])
 
   const removeMarker = (instanceId: string) => {
-    setMarkers(m => m.filter(mk => mk.instanceId !== instanceId))
+    setMarkers(m => m.filter(mk => markerKey(mk) !== instanceId))
     setSelectedMarkerId(null)
   }
 
   const updateMarker = (instanceId: string, patch: Partial<MarkerPosition>) =>
-    setMarkers(m => m.map(mk => mk.instanceId === instanceId ? { ...mk, ...patch } : mk))
+    setMarkers(m => m.map(mk => markerKey(mk) === instanceId ? { ...mk, ...patch } : mk))
 
   const copyMarker = (instanceId: string) => {
-    const mk = markers.find(m => m.instanceId === instanceId)
+    const mk = markers.find(m => markerKey(m) === instanceId)
     if (!mk) return
-    const newIid = Date.now().toString() + Math.random().toString(36).slice(2)
+    const newIid = newInstanceId()
     setMarkers(m => [...m, { ...mk, instanceId: newIid, x: Math.min(95, mk.x + 4), y: Math.min(95, mk.y + 4) }])
     setSelectedMarkerId(newIid)
   }
@@ -1322,7 +1331,7 @@ export default function EmergencyScheme() {
                           </div>
                           <div className="ml-auto flex items-center gap-2 shrink-0">
                             {selectedMarkerId && (() => {
-                              const mk = markers.find(m => (m.instanceId ?? m.legendId) === selectedMarkerId)
+                              const mk = markers.find(m => markerKey(m) === selectedMarkerId)
                               if (!mk) return null
                               const sc = mk.scale ?? 1
                               const rot = mk.rotation ?? 0
@@ -1381,7 +1390,7 @@ export default function EmergencyScheme() {
                           {markers.map(mk => {
                             const item = legend.find(l => l.id === mk.legendId)
                             if (!item) return null
-                            const iid = mk.instanceId ?? mk.legendId
+                            const iid = markerKey(mk)
                             const sc = mk.scale ?? 1
                             const rot = mk.rotation ?? 0
                             const isSelected = selectedMarkerId === iid
@@ -1389,7 +1398,7 @@ export default function EmergencyScheme() {
                               <div key={iid} className="absolute cursor-grab active:cursor-grabbing"
                                 style={{ left: `${mk.x}%`, top: `${mk.y}%`, transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`, zIndex: isSelected ? 30 : 10, transformOrigin: "center" }}
                                 onMouseDown={e => handleMarkerMouseDown(e, iid)}
-                                onClick={e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) }}
+                                onClick={e => { e.stopPropagation(); setSelectedMarkerId(iid) }}
                               >
                                 {item.imageUrl
                                   ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 36, height: 36, objectFit: "contain", display: "block" }} draggable={false} />
@@ -1529,7 +1538,7 @@ export default function EmergencyScheme() {
                           {markers.map(mk => {
                             const item = legend.find(l => l.id === mk.legendId)
                             if (!item) return null
-                            const iid = mk.instanceId ?? mk.legendId
+                            const iid = markerKey(mk)
                             const sc = mk.scale ?? 1
                             const rot = mk.rotation ?? 0
                             const isSelected = selectedMarkerId === iid
@@ -1537,7 +1546,7 @@ export default function EmergencyScheme() {
                               <div key={iid} className="absolute cursor-grab active:cursor-grabbing"
                                 style={{ left: `${mk.x}%`, top: `${mk.y}%`, transform: `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`, zIndex: isSelected ? 30 : 10, transformOrigin: "center" }}
                                 onMouseDown={e => handleMarkerMouseDown(e, iid)}
-                                onClick={e => { e.stopPropagation(); setSelectedMarkerId(isSelected ? null : iid) }}
+                                onClick={e => { e.stopPropagation(); setSelectedMarkerId(iid) }}
                               >
                                 {item.imageUrl
                                   ? <img src={item.imageUrl} alt={item.symbol} style={{ width: 28, height: 28, objectFit: "contain", display: "block" }} draggable={false} />
