@@ -580,6 +580,48 @@ export default function EmergencyScheme() {
     setSelectedMarkerId(newIid)
   }
 
+  // Горячие клавиши для выделенного символа: Delete — удалить, стрелки — сдвинуть
+  useEffect(() => {
+    if (!selectedMarkerId) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      const tag = t?.tagName
+      // Не мешаем вводу в поля формы
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault()
+        removeMarker(selectedMarkerId)
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        setSelectedMarkerId(null)
+        return
+      }
+
+      const step = e.shiftKey ? 2 : 0.3   // % от размера схемы
+      const delta: Record<string, [number, number]> = {
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
+      }
+      const d = delta[e.key]
+      if (!d) return
+      e.preventDefault()
+      setMarkers(m => m.map(mk => markerKey(mk) === selectedMarkerId
+        ? {
+            ...mk,
+            x: Math.min(100, Math.max(0, mk.x + d[0])),
+            y: Math.min(100, Math.max(0, mk.y + d[1])),
+          }
+        : mk))
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selectedMarkerId])
+
   const addLegendItem = () => setLegend(l => [...l, { id: Date.now().toString(), symbol: "", description: "" }])
   const updateLegend = (id: string, field: "symbol" | "description" | "imageUrl", value: string) =>
     setLegend(l => l.map(item => item.id === id ? { ...item, [field]: value } : item))
@@ -1349,6 +1391,7 @@ export default function EmergencyScheme() {
                                   <span className="text-[10px] text-foreground/60 w-7">{rot}°</span>
                                   <button onClick={() => copyMarker(selectedMarkerId)} className="text-[10px] text-foreground/50 hover:text-foreground border border-foreground/15 rounded px-1.5 py-0.5 transition-colors">Копия</button>
                                   <button onClick={() => removeMarker(selectedMarkerId)} className="text-[10px] text-red-400 border border-red-500/20 rounded px-1.5 py-0.5 transition-colors">Удалить</button>
+                                  <span className="text-[9px] text-foreground/30 hidden xl:inline">стрелки — сдвиг, Shift — крупно, Delete — удалить</span>
                                   <button onClick={() => setSelectedMarkerId(null)} className="text-foreground/30 hover:text-foreground/60"><Icon name="X" size={12} /></button>
                                 </div>
                               )
