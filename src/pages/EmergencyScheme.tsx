@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { GrainOverlay } from "@/components/grain-overlay"
 import Icon from "@/components/ui/icon"
 import SchemeDrawLayer, { type Stroke, type SchemeTool } from "@/components/scheme-draw-layer"
+import SchemeCanvas from "@/components/scheme-canvas"
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, ImageRun, PageOrientation, convertMillimetersToTwip } from "docx"
 import * as XLSX from "xlsx"
 import html2canvas from "html2canvas"
@@ -542,14 +543,17 @@ export default function EmergencyScheme() {
   }
 
   const getRelativePos = useCallback((clientX: number, clientY: number) => {
-    const el = previewImageRef.current ?? imageContainerRef.current
+    // Берём контейнер активной вкладки: в редакторе и превью разные пропорции
+    const el = activeTab === "preview"
+      ? (previewImageRef.current ?? imageContainerRef.current)
+      : (imageContainerRef.current ?? previewImageRef.current)
     if (!el) return { x: 50, y: 50 }
     const rect = el.getBoundingClientRect()
     return {
       x: Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100)),
       y: Math.min(100, Math.max(0, ((clientY - rect.top) / rect.height) * 100)),
     }
-  }, [])
+  }, [activeTab])
 
   // ── Рисование карандашом / стирание ────────────────────────────────────────
   // Координаты берём относительно самого слоя рисования — не зависит от масштаба
@@ -616,7 +620,7 @@ export default function EmergencyScheme() {
   const handleMarkerMouseDown = useCallback((e: React.MouseEvent, instanceId: string) => {
     e.stopPropagation()
     setSelectedMarkerId(instanceId)
-    const el = imageContainerRef.current
+    const el = activeTab === "preview" ? previewImageRef.current : imageContainerRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
     const marker = markers.find(m => markerKey(m) === instanceId)
@@ -624,7 +628,7 @@ export default function EmergencyScheme() {
     const markerPxX = (marker.x / 100) * rect.width + rect.left
     const markerPxY = (marker.y / 100) * rect.height + rect.top
     setDraggingMarker({ instanceId, offsetX: e.clientX - markerPxX, offsetY: e.clientY - markerPxY })
-  }, [markers])
+  }, [markers, activeTab])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!draggingMarker) return
@@ -1522,16 +1526,16 @@ export default function EmergencyScheme() {
                         </div>
 
                         {/* Область схемы с маркерами */}
-                        <div
+                        <div className="relative flex-1 overflow-hidden select-none" style={{ background: "#1a1a2e" }}>
+                        <SchemeCanvas
                           ref={imageContainerRef}
-                          className={`relative flex-1 overflow-hidden select-none ${placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : ""}`}
-                          style={{ background: "#1a1a2e" }}
+                          imageUrl={imageUrl}
+                          className={placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : ""}
                           onClick={handleImageAreaClick}
                           onMouseMove={handleMouseMove}
                           onMouseUp={handleMouseUp}
                           onMouseLeave={handleMouseUp}
                         >
-                          <img src={imageUrl} alt="Схема" className="block pointer-events-none w-full h-full object-contain" />
                           {placingLegendId && (
                             <div className="absolute inset-0 border-4 border-dashed border-blue-400 pointer-events-none flex items-end justify-center pb-8">
                               <span className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg shadow-lg">Кликните для размещения</span>
@@ -1565,6 +1569,7 @@ export default function EmergencyScheme() {
                               </div>
                             )
                           })}
+                        </SchemeCanvas>
                         </div>
                         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                       </>
@@ -1670,23 +1675,23 @@ export default function EmergencyScheme() {
                       {/* ОСНОВНАЯ ОБЛАСТЬ: схема + УО */}
                       <div style={{ flex: 1, display: "flex", border: "1px solid #64748b", minHeight: 0 }}>
                         {/* Картинка схемы с маркерами */}
-                        <div
+                        <div style={{ flex: 1, position: "relative", borderRight: legend.length > 0 ? "1px solid #64748b" : "none", overflow: "hidden" }}>
+                        {!imageUrl && (
+                          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                            <span style={{ color: "#cbd5e1", fontSize: "1.5em", fontWeight: 300 }}>Аварийная схема №1</span>
+                          </div>
+                        )}
+                        {imageUrl && (
+                        <SchemeCanvas
                           ref={previewImageRef}
-                          style={{ flex: 1, position: "relative", borderRight: legend.length > 0 ? "1px solid #64748b" : "none", overflow: "hidden" }}
+                          imageUrl={imageUrl}
                           className={placingLegendId ? "cursor-crosshair" : draggingMarker ? "cursor-grabbing" : ""}
                           onClick={handleImageAreaClick}
                           onMouseMove={handleMouseMove}
                           onMouseUp={handleMouseUp}
                           onMouseLeave={handleMouseUp}
                         >
-                          {imageUrl ? (
-                            <img src={imageUrl} alt="Схема" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} draggable={false} className="pointer-events-none" />
-                          ) : (
-                            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                              <span style={{ color: "#cbd5e1", fontSize: "1.5em", fontWeight: 300 }}>Аварийная схема №1</span>
-                            </div>
-                          )}
                           {placingLegendId && (
                             <div className="absolute inset-0 border-4 border-dashed border-blue-400 pointer-events-none flex items-end justify-center pb-4">
                               <span className="bg-blue-500 text-white text-xs px-3 py-1.5 rounded shadow-lg">Кликните для размещения</span>
@@ -1720,6 +1725,8 @@ export default function EmergencyScheme() {
                               </div>
                             )
                           })}
+                        </SchemeCanvas>
+                        )}
                         </div>
 
                         {/* Условные обозначения справа */}
