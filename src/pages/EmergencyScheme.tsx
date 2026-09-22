@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { GrainOverlay } from "@/components/grain-overlay"
 import Icon from "@/components/ui/icon"
+import SchemeDrawLayer, { type Stroke, type SchemeTool } from "@/components/scheme-draw-layer"
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, ImageRun, PageOrientation, convertMillimetersToTwip } from "docx"
 import * as XLSX from "xlsx"
 import html2canvas from "html2canvas"
@@ -34,6 +35,18 @@ const newInstanceId = () => Date.now().toString() + Math.random().toString(36).s
 // Проставляем уникальный id маркерам из ранее сохранённых схем
 const normalizeMarkers = (list?: MarkerPosition[]): MarkerPosition[] =>
   (list ?? []).map(m => (m.instanceId ? m : { ...m, instanceId: newInstanceId() }))
+
+const PEN_COLORS = ["#dc2626", "#2563eb", "#16a34a", "#ca8a04", "#000000"]
+
+// Подчёркнутое поле бланка: линия не должна задевать буквы
+const underline = (minWidth?: number): React.CSSProperties => ({
+  borderBottom: "1px solid #000",
+  display: "inline-block",
+  minWidth,
+  paddingBottom: "0.18em",
+  lineHeight: 1.25,
+  verticalAlign: "baseline",
+})
 
 interface FormData {
   position: string
@@ -70,6 +83,7 @@ interface SavedScheme {
   legend: LegendItem[]
   imageDataUrl: string | null
   markers?: MarkerPosition[]
+  strokes?: Stroke[]
 }
 
 // SVG-иконки условных обозначений согласно ГОСТ / Приказу Ростехнадзора №520
@@ -385,6 +399,12 @@ export default function EmergencyScheme() {
   const [placingLegendId, setPlacingLegendId] = useState<string | null>(null)
   const [editingMarkers, setEditingMarkers] = useState(false)
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null)
+  // Рисование поверх схемы
+  const [strokes, setStrokes] = useState<Stroke[]>(() => loadSchemes()[0]?.strokes ?? [])
+  const [tool, setTool] = useState<SchemeTool>("select")
+  const [penColor, setPenColor] = useState(PEN_COLORS[0])
+  const [penWidth, setPenWidth] = useState(3)
+  const drawingRef = useRef(false)
   const imageContainerRef = useRef<HTMLDivElement>(null)
   const previewImageRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -435,12 +455,12 @@ export default function EmergencyScheme() {
     if (!activeId) return
     const updated = schemes.map(s =>
       s.id === activeId
-        ? { ...s, form, legend, imageDataUrl: imageUrl, markers, updatedAt: new Date().toISOString() }
+        ? { ...s, form, legend, imageDataUrl: imageUrl, markers, strokes, updatedAt: new Date().toISOString() }
         : s
     )
     setSchemes(updated)
     saveSchemes(updated)
-  }, [form, legend, imageUrl, markers])
+  }, [form, legend, imageUrl, markers, strokes])
 
   const createNew = () => {
     const id = Date.now().toString()
@@ -465,6 +485,7 @@ export default function EmergencyScheme() {
     setLegend(scheme.legend)
     setImageUrl(scheme.imageDataUrl)
     setMarkers(normalizeMarkers(scheme.markers))
+    setStrokes(scheme.strokes ?? [])
     setImageFile(null)
     setActiveTab("form")
   }
@@ -530,7 +551,58 @@ export default function EmergencyScheme() {
     }
   }, [])
 
+  // ── Рисование карандашом / стирание ────────────────────────────────────────
+  // Координаты берём относительно самого слоя рисования — не зависит от масштаба
+  const posInLayer = (e: React.PointerEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    return {
+      x: Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)),
+      y: Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100)),
+    }
+  }
+
+  const handleDrawDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (tool === "select") return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    drawingRef.current = true
+    const p = posInLayer(e)
+    if (tool === "eraser") { eraseAt(p); return }
+    setStrokes(s => [...s, { id: newInstanceId(), color: penColor, width: penWidth, points: [p] }])
+  }
+
+  const handleDrawMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingRef.current || tool === "select") return
+    const p = posInLayer(e)
+    if (tool === "eraser") { eraseAt(p); return }
+    setStrokes(s => {
+      if (s.length === 0) return s
+      const last = s[s.length - 1]
+      return [...s.slice(0, -1), { ...last, points: [...last.points, p] }]
+    })
+  }
+
+  const handleDrawUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingRef.current) return
+    drawingRef.current = false
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* курсор мог уйти за пределы */ }
+    // Одиночный клик без движения — след из одной точки, убираем
+    setStrokes(s => s.filter(st => st.points.length > 1))
+  }
+
+  // Стираем следы, попавшие под ластик (радиус в % от ширины схемы)
+  const eraseAt = (p: { x: number; y: number }) => {
+    const r = Math.max(1.2, penWidth * 0.6)
+    setStrokes(s => s.filter(st =>
+      !st.points.some(pt => Math.abs(pt.x - p.x) < r && Math.abs(pt.y - p.y) < r)
+    ))
+  }
+
+  const undoStroke = () => setStrokes(s => s.slice(0, -1))
+  const clearStrokes = () => setStrokes([])
+
   const handleImageAreaClick = useCallback((e: React.MouseEvent) => {
+    if (tool !== "select") return
     if (!placingLegendId) {
       if (editingMarkers) setSelectedMarkerId(null)
       return
@@ -539,7 +611,7 @@ export default function EmergencyScheme() {
     const iid = newInstanceId()
     setMarkers(m => [...m, { legendId: placingLegendId, x: pos.x, y: pos.y, scale: 1, rotation: 0, instanceId: iid }])
     setPlacingLegendId(null)
-  }, [placingLegendId, editingMarkers, getRelativePos])
+  }, [placingLegendId, editingMarkers, getRelativePos, tool])
 
   const handleMarkerMouseDown = useCallback((e: React.MouseEvent, instanceId: string) => {
     e.stopPropagation()
@@ -1397,17 +1469,52 @@ export default function EmergencyScheme() {
                               )
                             })()}
                             <div className="flex gap-1">
-                              {(["Выбор", "Карандаш", "Ластик"] as const).map((t, i) => (
-                                <button key={t}
-                                  onClick={() => { if (i === 0) { setPlacingLegendId(null); setEditingMarkers(true) } }}
-                                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${i === 0 && editingMarkers && !placingLegendId ? "border-primary bg-primary/15 text-primary" : "border-foreground/15 text-foreground/50 hover:text-foreground"}`}
+                              {([
+                                { t: "select" as const, label: "Выбор", icon: "MousePointer2" },
+                                { t: "pencil" as const, label: "Карандаш", icon: "Pencil" },
+                                { t: "eraser" as const, label: "Ластик", icon: "Eraser" },
+                              ]).map(b => (
+                                <button key={b.t}
+                                  onClick={() => {
+                                    setTool(b.t)
+                                    setPlacingLegendId(null)
+                                    if (b.t === "select") setEditingMarkers(true)
+                                    else setSelectedMarkerId(null)
+                                  }}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${tool === b.t ? "border-primary bg-primary/15 text-primary" : "border-foreground/15 text-foreground/50 hover:text-foreground"}`}
                                 >
-                                  <Icon name={i === 0 ? "MousePointer2" : i === 1 ? "Pencil" : "Eraser"} size={11} />
-                                  {t}
+                                  <Icon name={b.icon} size={11} />
+                                  {b.label}
                                 </button>
                               ))}
                             </div>
-                            <button onClick={() => { setImageUrl(null); setImageFile(null); setMarkers([]) }}
+
+                            {/* Цвет и толщина — только для карандаша/ластика */}
+                            {tool !== "select" && (
+                              <div className="flex items-center gap-1.5 border-l border-foreground/10 pl-2">
+                                {tool === "pencil" && PEN_COLORS.map(c => (
+                                  <button key={c} onClick={() => setPenColor(c)} title="Цвет карандаша"
+                                    className={`w-4 h-4 rounded-full border transition-transform hover:scale-110 ${penColor === c ? "border-white scale-110" : "border-foreground/20"}`}
+                                    style={{ background: c }} />
+                                ))}
+                                <span className="text-[10px] text-foreground/40 ml-1">{tool === "pencil" ? "Толщина" : "Радиус"}</span>
+                                <input type="range" min="1" max="12" step="1" value={penWidth}
+                                  onChange={e => setPenWidth(parseInt(e.target.value))}
+                                  className="w-14 accent-blue-400 h-1" />
+                                <span className="text-[10px] text-foreground/60 w-4">{penWidth}</span>
+                                <button onClick={undoStroke} disabled={strokes.length === 0} title="Отменить последний штрих"
+                                  className="text-[10px] text-foreground/50 hover:text-foreground border border-foreground/15 rounded px-1.5 py-0.5 transition-colors disabled:opacity-30">
+                                  <Icon name="Undo2" size={11} />
+                                </button>
+                                <button onClick={clearStrokes} disabled={strokes.length === 0} title="Стереть все рисунки"
+                                  className="text-[10px] text-red-400 border border-red-500/20 rounded px-1.5 py-0.5 transition-colors disabled:opacity-30">
+                                  Очистить
+                                </button>
+                              </div>
+                            )}
+
+                            <button onClick={() => { setImageUrl(null); setImageFile(null); setMarkers([]); setStrokes([]) }}
+                              title="Удалить схему"
                               className="text-[10px] text-foreground/30 hover:text-red-400 border border-foreground/10 rounded px-2 py-1 transition-colors">
                               <Icon name="Trash2" size={11} />
                             </button>
@@ -1430,6 +1537,13 @@ export default function EmergencyScheme() {
                               <span className="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg shadow-lg">Кликните для размещения</span>
                             </div>
                           )}
+                          <SchemeDrawLayer
+                            strokes={strokes}
+                            tool={tool}
+                            onPointerDown={handleDrawDown}
+                            onPointerMove={handleDrawMove}
+                            onPointerUp={handleDrawUp}
+                          />
                           {markers.map(mk => {
                             const item = legend.find(l => l.id === mk.legendId)
                             if (!item) return null
@@ -1487,12 +1601,12 @@ export default function EmergencyScheme() {
                       {/* ЗАГОЛОВОК */}
                       <div style={{ textAlign: "center", fontWeight: 700, fontSize: "1.15em", marginBottom: "0.6em", borderBottom: "2px solid #1e3a8a", paddingBottom: "0.4em", flexShrink: 0 }}>
                         Схема аварийного участка&nbsp;—&nbsp;позиция&nbsp;
-                        <span style={{ borderBottom: "1px solid #000", minWidth: 28, display: "inline-block" }}>{form.position || "\u00A0"}</span>
+                        <span style={underline(28)}>{form.position || "\u00A0"}</span>
                         &nbsp;&nbsp;
-                        <span style={{ borderBottom: "1px solid #000", minWidth: 60, display: "inline-block" }}>{form.date}</span>
+                        <span style={underline(60)}>{form.date}</span>
                         &nbsp;&nbsp;
-                        <span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.time}</span>
-                        &nbsp;(&nbsp;<span style={{ borderBottom: "1px solid #000", minWidth: 24, display: "inline-block" }}>{form.timezone || "мск"}</span>&nbsp;)
+                        <span style={underline(36)}>{form.time}</span>
+                        &nbsp;(&nbsp;<span style={underline(24)}>{form.timezone || "мск"}</span>&nbsp;)
                       </div>
 
                       {/* ВЕРХНИЙ БЛОК: реквизиты + атмосфера */}
@@ -1501,32 +1615,32 @@ export default function EmergencyScheme() {
                         <div style={{ flex: 1 }}>
                           <div style={{ display: "flex", gap: "0.3em", marginBottom: "0.25em", alignItems: "flex-end" }}>
                             <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Наименование объекта:</span>
-                            <span style={{ borderBottom: "1px solid #000", flex: 1 }}>{form.objectName || "\u00A0"}</span>
+                            <span style={{ ...underline(), display: "block", flex: 1 }}>{form.objectName || "\u00A0"}</span>
                           </div>
                           <table style={{ borderCollapse: "collapse", width: "100%", lineHeight: 1.5 }}>
                             <tbody>
                               <tr>
                                 <td style={{ fontWeight: 700, whiteSpace: "nowrap", paddingRight: "0.4em" }}>Вид аварии:</td>
-                                <td style={{ borderBottom: "1px solid #000" }}>{form.accidentType}</td>
+                                <td style={{ ...underline(), display: "table-cell" }}>{form.accidentType}</td>
                                 <td style={{ fontWeight: 700, whiteSpace: "nowrap", paddingLeft: "0.8em", paddingRight: "0.4em" }}>Дата/время:</td>
                                 <td style={{ whiteSpace: "nowrap" }}>
-                                  <span style={{ borderBottom: "1px solid #000", minWidth: 60, display: "inline-block" }}>{form.accidentDate}</span>
-                                  &nbsp;<span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.accidentTime}</span>
+                                  <span style={underline(60)}>{form.accidentDate}</span>
+                                  &nbsp;<span style={underline(36)}>{form.accidentTime}</span>
                                 </td>
                               </tr>
                               <tr>
                                 <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Место аварии:</td>
-                                <td colSpan={3} style={{ borderBottom: "1px solid #000", fontStyle: "italic" }}>{form.accidentLocation || "\u00A0"}</td>
+                                <td colSpan={3} style={{ ...underline(), display: "table-cell", fontStyle: "italic" }}>{form.accidentLocation || "\u00A0"}</td>
                               </tr>
                               <tr>
                                 <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Кол-во воздуха:</td>
-                                <td><span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.airVolume}</span>&nbsp;м³/с</td>
+                                <td><span style={underline(36)}>{form.airVolume}</span>&nbsp;м³/с</td>
                                 <td style={{ fontWeight: 700, whiteSpace: "nowrap", paddingLeft: "0.8em" }}>Сечение:</td>
-                                <td><span style={{ borderBottom: "1px solid #000", minWidth: 36, display: "inline-block" }}>{form.sectionArea}</span>&nbsp;м²</td>
+                                <td><span style={underline(36)}>{form.sectionArea}</span>&nbsp;м²</td>
                               </tr>
                               <tr>
                                 <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Телефон КП:</td>
-                                <td colSpan={3} style={{ fontStyle: "italic" }}><span style={{ borderBottom: "1px solid #000", minWidth: 60, display: "inline-block" }}>{form.phoneCP}</span></td>
+                                <td colSpan={3} style={{ fontStyle: "italic" }}><span style={underline(60)}>{form.phoneCP}</span></td>
                               </tr>
                             </tbody>
                           </table>
@@ -1543,7 +1657,7 @@ export default function EmergencyScheme() {
                               ["t°", form.temperature, "°C"],
                             ] as [string, string, string][]).map(([name, val, unit]) => (
                               <div key={name} style={{ whiteSpace: "nowrap" }}>
-                                <b>{name}-</b>&nbsp;<i><span style={{ borderBottom: "1px solid #000", minWidth: 30, display: "inline-block" }}>{val || "0,00"}</span></i>&nbsp;{unit}
+                                <b>{name}-</b>&nbsp;<i><span style={underline(30)}>{val || "0,00"}</span></i>&nbsp;{unit}
                               </div>
                             ))}
                             <div style={{ gridColumn: "1 / -1" }}>
@@ -1578,6 +1692,13 @@ export default function EmergencyScheme() {
                               <span className="bg-blue-500 text-white text-xs px-3 py-1.5 rounded shadow-lg">Кликните для размещения</span>
                             </div>
                           )}
+                          <SchemeDrawLayer
+                            strokes={strokes}
+                            tool={tool}
+                            onPointerDown={handleDrawDown}
+                            onPointerMove={handleDrawMove}
+                            onPointerUp={handleDrawUp}
+                          />
                           {markers.map(mk => {
                             const item = legend.find(l => l.id === mk.legendId)
                             if (!item) return null
@@ -1618,8 +1739,8 @@ export default function EmergencyScheme() {
                       {/* ПОДПИСЬ */}
                       <div style={{ flexShrink: 0, paddingTop: "0.6em", display: "flex", alignItems: "flex-end", gap: "0.5em" }}>
                         <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>Руководитель горноспасательных работ:</span>
-                        <div style={{ flex: 1, borderBottom: "1px solid #000" }}>&nbsp;</div>
-                        <span style={{ fontStyle: "italic", borderBottom: "1px solid #000", minWidth: 120, textAlign: "center", display: "inline-block" }}>{form.headRescue || "\u00A0"}</span>
+                        <div style={{ flex: 1, borderBottom: "1px solid #000", paddingBottom: "0.18em" }}>&nbsp;</div>
+                        <span style={{ ...underline(120), fontStyle: "italic", textAlign: "center" }}>{form.headRescue || "\u00A0"}</span>
                       </div>
                     </div>
                   </div>
