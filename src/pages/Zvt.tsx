@@ -324,6 +324,15 @@ export default function Zvt() {
                 </button>
               ))}
             </div>
+            <a
+              href="/zvt-calc.ts"
+              download="zvt-calc.ts"
+              title="Скачать модуль расчёта ЗВТ для другого проекта"
+              className="flex items-center gap-1.5 rounded-lg border border-foreground/20 px-2.5 py-1 font-sans text-xs text-foreground/60 transition-all hover:border-foreground/40 hover:text-foreground"
+            >
+              <Icon name="Download" size={11} />
+              Код расчёта
+            </a>
             <span className="font-mono text-[10px] text-foreground/30 hidden md:block">
               Приказ №520 · Прил. 6
             </span>
