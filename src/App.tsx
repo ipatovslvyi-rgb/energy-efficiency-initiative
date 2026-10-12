@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ExplosionTriangle from "./pages/ExplosionTriangle";
-import EmergencyScheme from "./pages/EmergencyScheme";
 import Admin from "./pages/Admin";
 import FireLoad from "./pages/FireLoad";
 import Ventilation from "./pages/Ventilation";
@@ -31,7 +30,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/explosion-triangle" element={<ExplosionTriangle />} />
-            <Route path="/emergency-scheme" element={<EmergencyScheme />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/fire-load" element={<FireLoad />} />
             <Route path="/ventilation" element={<Ventilation />} />

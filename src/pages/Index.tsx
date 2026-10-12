@@ -23,7 +23,6 @@ export default function Index() {
   useEffect(() => { setIsLoaded(true) }, [])
 
   const CALCS = [
-    { label: "Схема аварии",      href: "/emergency-scheme",   icon: "AlertTriangle", available: true  },
     { label: "Вентиляция",        href: "/ventilation",         icon: "Wind",          available: true  },
     { label: "Пожаротушение",     href: "/firefighting",        icon: "Flame",         available: true  },
     { label: "Пожарная нагрузка", href: "/fire-load",           icon: "Layers",        available: true  },
@@ -113,7 +112,7 @@ export default function Index() {
             Поиск
           </button>
           <button
-            onClick={() => navigate("/emergency-scheme")}
+            onClick={() => navigate("/ventilation")}
             className="rounded-lg bg-foreground px-4 py-1.5 font-sans text-sm font-medium text-background transition-all hover:bg-foreground/90"
           >
             Попробовать
@@ -228,7 +227,7 @@ export default function Index() {
                 <span className="text-pretty">Профессиональный инструмент для Службы депрессионных съемок и группы инженерного обеспечения ФГУП "ВГСЧ"</span>
               </p>
               <div className="flex animate-in fade-in slide-in-from-bottom-4 flex-col gap-3 duration-1000 delay-300 sm:flex-row sm:items-center">
-                <MagneticButton size="lg" variant="primary" onClick={() => navigate("/emergency-scheme")}>
+                <MagneticButton size="lg" variant="primary" onClick={() => navigate("/ventilation")}>
                   Начать расчет
                 </MagneticButton>
                 <MagneticButton size="lg" variant="secondary" onClick={() => navigate("/about")}>
