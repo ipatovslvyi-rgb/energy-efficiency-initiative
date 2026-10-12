@@ -582,13 +582,24 @@ export default function ExplosionTriangle() {
             <span className="font-sans text-[10px] text-foreground/60 tracking-wide -mt-0.5">Расчёты для шахт и рудников</span>
           </div>
         </button>
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-2 font-mono text-xs text-foreground/60 hover:text-foreground transition-colors"
-        >
-          <Icon name="ArrowLeft" size={14} />
-          На главную
-        </button>
+        <div className="flex items-center gap-5">
+          <a
+            href="/explosion-triangle-calc.ts"
+            download="explosion-triangle-calc.ts"
+            title="Скачать модуль расчёта для другого проекта"
+            className="flex items-center gap-2 rounded-lg border border-foreground/20 px-3 py-1.5 font-mono text-xs text-foreground/60 hover:border-foreground/40 hover:text-foreground transition-colors"
+          >
+            <Icon name="Download" size={14} />
+            Код расчёта
+          </a>
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 font-mono text-xs text-foreground/60 hover:text-foreground transition-colors"
+          >
+            <Icon name="ArrowLeft" size={14} />
+            На главную
+          </button>
+        </div>
       </nav>
 
       <div className="relative z-10 pt-28 pb-20 px-6 md:px-12 max-w-7xl mx-auto">
