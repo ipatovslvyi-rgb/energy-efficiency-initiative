@@ -10,17 +10,7 @@ export type SearchResult = {
 const SECTIONS: SearchResult[] = [
   { id: "s-ventilation", title: "Вентиляция", subtitle: "Расчёт площади сечения и аэродинамического сопротивления", category: "Раздел", route: "/", sectionIndex: 1 },
   { id: "s-firefighting", title: "Пожаротушение", subtitle: "Расчёт стволов, расхода, рукавов, пены и объёма", category: "Раздел", route: "/", sectionIndex: 2 },
-  { id: "s-explosion", title: "Треугольник взрываемости", subtitle: "Диаграмма Гиббса — зона взрываемости по трём параметрам", category: "Раздел", route: "/explosion-triangle" },
   { id: "s-reference", title: "Справочник", subtitle: "Нормативные значения, материалы, свойства воздуха", category: "Раздел", route: "/", sectionIndex: 4 },
-]
-
-const GASES: SearchResult[] = [
-  { id: "g-methane",  title: "Метан",        subtitle: "CH₄ · НПВ 5% · ВПВ 15% · Основной рудничный газ",         category: "Газ",      route: "/explosion-triangle" },
-  { id: "g-hydrogen", title: "Водород",      subtitle: "H₂ · НПВ 4% · ВПВ 75% · Взрывоопасен в широком диапазоне", category: "Газ",      route: "/explosion-triangle" },
-  { id: "g-co",       title: "Угарный газ",  subtitle: "CO · НПВ 12.5% · ВПВ 74% · Токсичен и взрывоопасен",       category: "Газ",      route: "/explosion-triangle" },
-  { id: "g-ethane",   title: "Этан",         subtitle: "C₂H₆ · НПВ 3% · ВПВ 12.5% · Попутный газ в шахтах",       category: "Газ",      route: "/explosion-triangle" },
-  { id: "g-propane",  title: "Пропан",       subtitle: "C₃H₈ · НПВ 2.1% · ВПВ 9.5% · Тяжелее воздуха",           category: "Газ",      route: "/explosion-triangle" },
-  { id: "g-acetylene",title: "Ацетилен",     subtitle: "C₂H₂ · НПВ 2.5% · ВПВ 80%",                               category: "Газ",      route: "/explosion-triangle" },
 ]
 
 const MATERIALS: SearchResult[] = [
@@ -64,7 +54,7 @@ const NORMS: SearchResult[] = [
   { id: "n-water-stock", title: "Запас воды",                                 subtitle: "не менее 250 м³ · Пожаротушение",  category: "Норматив", route: "/", sectionIndex: 4 },
 ]
 
-const ALL_ITEMS: SearchResult[] = [...SECTIONS, ...GASES, ...MATERIALS, ...NORMS]
+const ALL_ITEMS: SearchResult[] = [...SECTIONS, ...MATERIALS, ...NORMS]
 
 export function search(query: string): SearchResult[] {
   const q = query.toLowerCase().trim()

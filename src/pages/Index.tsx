@@ -26,7 +26,6 @@ export default function Index() {
     { label: "Вентиляция",        href: "/ventilation",         icon: "Wind",          available: true  },
     { label: "Пожаротушение",     href: "/firefighting",        icon: "Flame",         available: true  },
     { label: "Пожарная нагрузка", href: "/fire-load",           icon: "Layers",        available: true  },
-    { label: "Треугольник",       href: "/explosion-triangle",  icon: "Triangle",      available: true  },
   ]
 
   const DROPDOWN_CALCS = CALCS.filter(c => c.available)

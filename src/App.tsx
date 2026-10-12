@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import ExplosionTriangle from "./pages/ExplosionTriangle";
 import Admin from "./pages/Admin";
 import FireLoad from "./pages/FireLoad";
 import Ventilation from "./pages/Ventilation";
@@ -29,7 +28,6 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/explosion-triangle" element={<ExplosionTriangle />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/fire-load" element={<FireLoad />} />
             <Route path="/ventilation" element={<Ventilation />} />
