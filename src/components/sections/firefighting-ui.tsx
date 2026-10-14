@@ -1,8 +1,5 @@
-import { useState } from "react"
 import Icon from "@/components/ui/icon"
 import { exportToWord, exportToExcel, ExportData } from "@/lib/export-utils"
-import { useLicense } from "@/context/license-context"
-import { LicenseModal } from "@/components/license-gate"
 
 export function NumInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
@@ -33,23 +30,6 @@ export function ResultRow({ label, value, unit }: { label: string; value: string
 }
 
 export function ExportButtons({ data }: { data: ExportData }) {
-  const { isUnlocked } = useLicense()
-  const [showModal, setShowModal] = useState(false)
-  if (!isUnlocked) return (
-    <>
-      <div className="flex gap-2 border-t border-foreground/10 pt-4 mt-2">
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-lg border border-foreground/20 px-4 py-2 font-mono text-xs text-foreground/40 transition-all hover:border-foreground/40 hover:text-foreground">
-          <Icon name="Lock" size={14} />Word
-        </button>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-lg border border-foreground/20 px-4 py-2 font-mono text-xs text-foreground/40 transition-all hover:border-foreground/40 hover:text-foreground">
-          <Icon name="Lock" size={14} />Excel
-        </button>
-      </div>
-      {showModal && <LicenseModal onClose={() => setShowModal(false)} />}
-    </>
-  )
   return (
     <div className="flex gap-2 border-t border-foreground/10 pt-4 mt-2">
       <button
@@ -71,20 +51,17 @@ export function ExportButtons({ data }: { data: ExportData }) {
 }
 
 export function CalcButtons({ onCalc, onReset, disabled, showReset }: { onCalc: () => void; onReset: () => void; disabled: boolean; showReset: boolean }) {
-  const { isUnlocked } = useLicense()
-  const [showModal, setShowModal] = useState(false)
   return (
-    <>
     <div className="flex gap-3 pt-2">
       <button
-        onClick={isUnlocked ? onCalc : () => setShowModal(true)}
-        disabled={isUnlocked && disabled}
+        onClick={onCalc}
+        disabled={disabled}
         className="flex items-center gap-2 rounded-lg bg-foreground px-6 py-3 font-sans text-sm font-medium text-background transition-all hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
       >
-        <Icon name={isUnlocked ? "Calculator" : "Lock"} size={16} />
-        {isUnlocked ? "Рассчитать" : "Демо — ввести ключ"}
+        <Icon name="Calculator" size={16} />
+        Рассчитать
       </button>
-      {showReset && isUnlocked && (
+      {showReset && (
         <button
           onClick={onReset}
           className="flex items-center gap-2 rounded-lg border border-foreground/20 px-5 py-3 font-sans text-sm text-foreground/70 transition-all hover:border-foreground/40 hover:text-foreground"
@@ -94,8 +71,6 @@ export function CalcButtons({ onCalc, onReset, disabled, showReset }: { onCalc: 
         </button>
       )}
     </div>
-    {showModal && <LicenseModal onClose={() => setShowModal(false)} />}
-    </>
   )
 }
 

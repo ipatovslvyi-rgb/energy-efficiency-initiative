@@ -1,7 +1,6 @@
 import { GrainOverlay } from "@/components/grain-overlay"
 import { MagneticButton } from "@/components/magnetic-button"
 import GlobalSearch from "@/components/GlobalSearch"
-import { LicenseBanner } from "@/components/license-gate"
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import Icon from "@/components/ui/icon"
@@ -25,7 +24,6 @@ export default function Index() {
   const CALCS = [
     { label: "Вентиляция",        href: "/ventilation",         icon: "Wind",          available: true  },
     { label: "Пожаротушение",     href: "/firefighting",        icon: "Flame",         available: true  },
-    { label: "Пожарная нагрузка", href: "/fire-load",           icon: "Layers",        available: true  },
   ]
 
   const DROPDOWN_CALCS = CALCS.filter(c => c.available)
@@ -102,7 +100,6 @@ export default function Index() {
 
         {/* Правая часть */}
         <div className="hidden items-center gap-3 md:flex">
-          <LicenseBanner />
           <button
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-2 rounded-lg border border-foreground/20 px-3 py-1.5 font-sans text-sm text-foreground/70 transition-all hover:border-foreground/40 hover:text-foreground"
@@ -182,8 +179,7 @@ export default function Index() {
             </button>
           </div>
           <div className="mt-auto">
-            <LicenseBanner />
-          </div>
+            </div>
         </div>
       )}
 

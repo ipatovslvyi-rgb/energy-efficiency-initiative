@@ -1,0 +1,1 @@
+UPDATE license_keys SET is_active = FALSE;
