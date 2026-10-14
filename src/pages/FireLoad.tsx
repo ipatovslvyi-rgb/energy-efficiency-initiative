@@ -679,6 +679,15 @@ export default function FireLoad() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/fire-load-calc.ts"
+              download="fire-load-calc.ts"
+              title="Скачать модуль расчёта для другого проекта"
+              className="hidden sm:flex items-center gap-1.5 rounded-lg border border-foreground/20 px-3 py-1.5 font-mono text-xs text-foreground/60 transition-colors hover:border-foreground/40 hover:text-foreground"
+            >
+              <Icon name="Download" size={13} />
+              Код расчёта
+            </a>
             {/* Вкладки */}
             <div className="flex rounded-lg border border-foreground/15 bg-foreground/5 p-0.5">
               <button
